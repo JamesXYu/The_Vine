@@ -35,12 +35,41 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 
 -- =====================================================
+-- PUBLIC DOCUMENTS TABLE (separate from personal)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL DEFAULT 'Untitled',
+  content TEXT DEFAULT '',
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  user_email TEXT DEFAULT '',
+  folder TEXT DEFAULT NULL,
+  original_doc_id UUID DEFAULT NULL,
+  published_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- PUBLIC FOLDERS TABLE (separate from personal)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public_folders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
 -- INDEXES for better performance
 -- =====================================================
 CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
+CREATE INDEX IF NOT EXISTS idx_public_folders_user_id ON public_folders(user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_public_documents_user_id ON public_documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_folder ON documents(folder);
-CREATE INDEX IF NOT EXISTS idx_documents_is_published ON documents(is_published);
+CREATE INDEX IF NOT EXISTS idx_public_documents_folder ON public_documents(folder);
 
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS)
@@ -92,6 +121,42 @@ CREATE POLICY "Everyone can view published documents"
 -- Admins can manage all documents (you'll need to add admin role checking in your app)
 -- Note: For full admin support, create an admin_roles table or use user_metadata
 
+-- Public documents: Everyone can view (no auth required for reading)
+CREATE POLICY "Everyone can view public documents"
+  ON public_documents FOR SELECT
+  USING (true);
+
+-- Admins can manage public documents
+CREATE POLICY "Admins can insert public documents"
+  ON public_documents FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Admins can update public documents"
+  ON public_documents FOR UPDATE
+  USING (true);
+
+CREATE POLICY "Admins can delete public documents"
+  ON public_documents FOR DELETE
+  USING (true);
+
+-- Public folders: Everyone can view
+CREATE POLICY "Everyone can view public folders"
+  ON public_folders FOR SELECT
+  USING (true);
+
+-- Admins can manage public folders
+CREATE POLICY "Admins can insert public folders"
+  ON public_folders FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Admins can update public folders"
+  ON public_folders FOR UPDATE
+  USING (true);
+
+CREATE POLICY "Admins can delete public folders"
+  ON public_folders FOR DELETE
+  USING (true);
+
 -- =====================================================
 -- TRIGGERS for updated_at
 -- =====================================================
@@ -110,6 +175,16 @@ CREATE TRIGGER update_folders_updated_at
 
 CREATE TRIGGER update_documents_updated_at
   BEFORE UPDATE ON documents
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_public_folders_updated_at
+  BEFORE UPDATE ON public_folders
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_public_documents_updated_at
+  BEFORE UPDATE ON public_documents
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 

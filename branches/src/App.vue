@@ -41,6 +41,13 @@
           </svg>
           Shared
         </router-link>
+        <router-link to="/read" class="nav-btn" :class="{ active: $route.name === 'read' }">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          Document Viewer
+        </router-link>
         <router-link to="/admin" class="nav-btn" :class="{ active: $route.name === 'admin' }">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -113,8 +120,7 @@ export default {
 
     const isAdmin = computed(() => {
       if (!user.value) return false
-      return user.value.email === 'admin@thevine.com' || 
-             user.value.user_metadata?.role === 'admin'
+      return user.value.user_metadata?.role === 'admin'
     })
 
     onMounted(async () => {
@@ -184,18 +190,23 @@ body {
 
 .app-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   background-color: #f8f9fa;
 }
 
 /* Sidebar */
 .sidebar {
   width: 240px;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
   background-color: #fff;
   border-right: 1px solid #e9ecef;
   display: flex;
   flex-direction: column;
   padding: 24px 16px;
+  overflow-y: auto;
 }
 
 .sidebar-header {
@@ -313,7 +324,9 @@ body {
 
 /* Main Content */
 .main-content {
-  flex: 1;
+  margin-left: 240px;
+  height: 100vh;
+  width: calc(100% - 240px);
   overflow-y: auto;
 }
 </style>

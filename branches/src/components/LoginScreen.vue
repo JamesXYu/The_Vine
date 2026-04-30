@@ -17,6 +17,37 @@
       <p class="subtitle">{{ isSignUp ? 'Sign up to get started' : 'Sign in to continue' }}</p>
       
       <form @submit.prevent="handleSubmit">
+        <!-- Role Selection for Sign Up -->
+        <div v-if="isSignUp" class="form-group">
+          <label>I am a...</label>
+          <div class="role-selector">
+            <button 
+              type="button"
+              :class="{ active: role === 'member' }"
+              @click="role = 'member'"
+              class="role-btn"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              Member
+            </button>
+            <button 
+              type="button"
+              :class="{ active: role === 'admin' }"
+              @click="role = 'admin'"
+              class="role-btn"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Admin
+            </button>
+          </div>
+          <p class="role-hint">Admins can publish documents to the public library</p>
+        </div>
+        
         <div class="form-group">
           <label>Email</label>
           <input
@@ -33,6 +64,17 @@
             v-model="password"
             type="password"
             placeholder="Enter your password"
+            required
+          />
+        </div>
+        
+        <!-- Display Name for Sign Up -->
+        <div v-if="isSignUp" class="form-group">
+          <label>Display Name</label>
+          <input
+            v-model="displayName"
+            type="text"
+            placeholder="How should we call you?"
             required
           />
         </div>
@@ -64,6 +106,8 @@ export default {
   setup(props, { emit }) {
     const email = ref('')
     const password = ref('')
+    const displayName = ref('')
+    const role = ref('member')
     const isSignUp = ref(false)
     const loading = ref(false)
     const error = ref('')
@@ -73,6 +117,10 @@ export default {
       isSignUp.value = !isSignUp.value
       error.value = ''
       success.value = ''
+      // Reset fields when toggling
+      if (!isSignUp.value) {
+        displayName.value = ''
+      }
     }
 
     const handleSubmit = async () => {
@@ -85,9 +133,25 @@ export default {
           const { error: err } = await supabase.auth.signUp({
             email: email.value,
             password: password.value,
+            options: {
+              data: {
+                display_name: displayName.value,
+                role: role.value
+              }
+            }
           })
           if (err) throw err
           success.value = 'Check your email for confirmation!'
+          // Auto sign in after successful signup
+          setTimeout(async () => {
+            const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+              email: email.value,
+              password: password.value,
+            })
+            if (!signInErr && data.user) {
+              emit('login-success', data.user)
+            }
+          }, 1500)
         } else {
           const { data, error: err } = await supabase.auth.signInWithPassword({
             email: email.value,
@@ -106,6 +170,8 @@ export default {
     return {
       email,
       password,
+      displayName,
+      role,
       isSignUp,
       loading,
       error,
@@ -186,6 +252,46 @@ h1 {
   font-weight: 600;
   color: #1a1a1a;
   margin-bottom: 8px;
+}
+
+.role-selector {
+  display: flex;
+  gap: 12px;
+}
+
+.role-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+}
+
+.role-btn:hover {
+  border-color: #ccc;
+  background: #fafafa;
+}
+
+.role-btn.active {
+  border-color: #1a1a1a;
+  background: #f5f5f5;
+  color: #1a1a1a;
+}
+
+.role-hint {
+  font-size: 12px;
+  color: #888;
+  margin-top: 8px;
+  text-align: center;
 }
 
 input {

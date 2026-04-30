@@ -1,14 +1,28 @@
 <template>
   <div class="read-page">
+    <!-- No Document Selected State -->
+    <div v-if="!currentDocId && !loading" class="no-document">
+      <div class="no-doc-icon">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      </div>
+      <h2>No Document Selected</h2>
+      <p>Select a document from the Library to view it here</p>
+      <router-link to="/" class="go-to-library-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        Go to Library
+      </router-link>
+    </div>
+
     <!-- Document Header -->
-    <div class="doc-header">
+    <div v-else class="doc-header">
       <div class="header-left">
-        <button class="back-btn" @click="goBack">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Back
-        </button>
         <input 
           v-model="docTitle" 
           class="doc-title" 
@@ -28,10 +42,18 @@
       </div>
     </div>
 
-    <!-- Editor Container -->
-    <div class="editor-wrapper">
+    <!-- Editor Container with Tiptap (Read-only) -->
+    <div v-if="currentDocId" class="editor-wrapper">
+      <!-- Floating Toolbar (Visual only) -->
+      <div class="toolbar-placeholder">
+        <div class="toolbar-group">
+          <span class="toolbar-label">Reading Mode</span>
+        </div>
+      </div>
+
+      <!-- Tiptap Editor (Read-only) -->
       <div class="editor-container">
-        <div class="editor-content prose" v-html="content"></div>
+        <editor-content :editor="editor" class="editor-content" />
       </div>
     </div>
 
@@ -43,27 +65,64 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
+import Underline from '@tiptap/extension-underline'
+import TextAlign from '@tiptap/extension-text-align'
+import Highlight from '@tiptap/extension-highlight'
 import { supabase } from '../supabase'
 import { useDatabase } from '../composables/useDatabase'
 
 export default {
   name: 'ReadScreen',
+  components: {
+    EditorContent
+  },
   setup() {
     const route = useRoute()
     const router = useRouter()
     const db = useDatabase()
     
     const docTitle = ref('Untitled')
-    const content = ref('')
     const currentDocId = ref(null)
+    const currentUser = ref(null)
     const isAdmin = ref(false)
+    const loading = ref(false)
     const toast = ref('')
     const toastType = ref('success')
 
+    // Create read-only Tiptap editor
+    const editor = useEditor({
+      extensions: [
+        StarterKit.configure({
+          heading: {
+            levels: [1, 2, 3]
+          }
+        }),
+        Placeholder.configure({
+          placeholder: 'No content',
+        }),
+        Underline,
+        TextAlign.configure({
+          types: ['heading', 'paragraph'],
+        }),
+        Highlight,
+      ],
+      content: '',
+      editable: false, // Read-only mode
+      editorProps: {
+        attributes: {
+          class: 'prose',
+        },
+      },
+    })
+
     const wordCount = computed(() => {
-      const text = content.value.replace(/<[^>]*>/g, ' ')
+      if (!editor.value) return 0
+      const text = editor.value.getText()
       return text.split(/\s+/).filter(word => word.length > 0).length
     })
 
@@ -74,19 +133,30 @@ export default {
     }
 
     const loadDocument = async (docId) => {
-      const doc = await db.getDocument(docId)
-      if (doc) {
-        currentDocId.value = doc.id
-        docTitle.value = doc.title
-        content.value = doc.content || '<p>No content</p>'
-      } else {
-        showToast('Document not found', 'error')
-        router.push('/')
+      loading.value = true
+      try {
+        // First try to fetch from public_documents table (for public library docs)
+        let doc = await db.getPublicDocument(docId)
+        
+        // If not found, try documents table (for personal library docs)
+        if (!doc) {
+          doc = await db.getDocument(docId)
+        }
+        
+        if (doc) {
+          currentDocId.value = doc.id
+          docTitle.value = doc.title
+          // Set content in Tiptap editor
+          editor.value?.commands.setContent(doc.content || '<p>No content</p>')
+        } else {
+          showToast('Document not found', 'error')
+        }
+      } catch (err) {
+        console.error('Error loading document:', err)
+        showToast('Failed to load document', 'error')
+      } finally {
+        loading.value = false
       }
-    }
-
-    const goBack = () => {
-      router.push('/')
     }
 
     const editDocument = () => {
@@ -96,28 +166,31 @@ export default {
     }
 
     onMounted(async () => {
-      // Check if admin
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser()
-      isAdmin.value = user?.email === 'admin@thevine.com' || 
-                      user?.user_metadata?.role === 'admin'
+      currentUser.value = user
+      isAdmin.value = user?.user_metadata?.role === 'admin'
 
-      // Load document
-      const docId = route.query.doc
+      // Check for doc parameter in URL
+      const docId = route.query.doc || route.params.id
       if (docId) {
         await loadDocument(docId)
-      } else {
-        router.push('/')
       }
+    })
+
+    onBeforeUnmount(() => {
+      editor.value?.destroy()
     })
 
     return {
       docTitle,
-      content,
+      editor,
       wordCount,
+      loading,
+      currentDocId,
       isAdmin,
       toast,
       toastType,
-      goBack,
       editDocument
     }
   }
@@ -130,6 +203,55 @@ export default {
   flex-direction: column;
   height: calc(100vh - 48px);
   background-color: #fafafa;
+}
+
+/* No Document Selected State */
+.no-document {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 48px;
+  text-align: center;
+}
+
+.no-doc-icon {
+  color: #ccc;
+  margin-bottom: 24px;
+}
+
+.no-document h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.no-document p {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.go-to-library-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #1a1a1a;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.go-to-library-btn:hover {
+  background: #333;
 }
 
 /* Document Header */
@@ -147,25 +269,6 @@ export default {
   align-items: center;
   gap: 16px;
   flex: 1;
-}
-
-.back-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: transparent;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.back-btn:hover {
-  background: #f5f5f5;
-  color: #1a1a1a;
 }
 
 .doc-title {
@@ -216,23 +319,65 @@ export default {
 /* Editor Wrapper */
 .editor-wrapper {
   flex: 1;
+  position: relative;
   overflow: hidden;
+}
+
+/* Toolbar Placeholder (Visual indicator) */
+.toolbar-placeholder {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.toolbar-label {
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
 }
 
 /* Editor Container */
 .editor-container {
   height: 100%;
   overflow-y: auto;
-  padding: 48px;
+  padding: 80px 48px 48px;
 }
 
-/* Prose Styles */
+/* Editor Content */
 .editor-content {
   max-width: 720px;
   margin: 0 auto;
+}
+
+/* Prose Styles */
+.editor-content :deep(.ProseMirror) {
+  outline: none;
   font-size: 16px;
   line-height: 1.8;
   color: #333;
+}
+
+.editor-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
+  content: attr(data-placeholder);
+  float: left;
+  color: #adb5bd;
+  pointer-events: none;
+  height: 0;
 }
 
 .editor-content :deep(h1) {
@@ -318,6 +463,10 @@ export default {
   background: #fff3bf;
   padding: 2px 4px;
   border-radius: 4px;
+}
+
+.editor-content :deep(text-align-center) {
+  text-align: center;
 }
 
 /* Toast */

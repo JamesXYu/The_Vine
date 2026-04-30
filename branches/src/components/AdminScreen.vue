@@ -3,6 +3,12 @@
     <!-- Document Header -->
     <div class="doc-header">
       <div class="header-left">
+        <button class="back-btn" @click="goBack">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          View
+        </button>
         <input 
           v-model="docTitle" 
           class="doc-title" 
@@ -10,9 +16,14 @@
         />
         <span class="word-count">{{ wordCount }} words</span>
       </div>
-      <button class="publish-btn" @click="handlePublish">
-        Publish
-      </button>
+      <div class="header-actions">
+        <button class="save-exit-btn" @click="handleSaveAndExit" :disabled="isSaving">
+          {{ isSaving ? 'Saving...' : 'Save & Exit' }}
+        </button>
+        <button class="save-btn" @click="handleSave" :disabled="isSaving">
+          Save
+        </button>
+      </div>
     </div>
 
     <!-- Editor Container -->
@@ -188,6 +199,7 @@ export default {
     const docTitle = ref('Untitled')
     const showToolbar = ref(false)
     const currentDocId = ref(null)
+    const currentPublicDocId = ref(null) // Track if this is a public document
     const currentUser = ref(null)
     const toast = ref('')
     const toastType = ref('success')
@@ -201,7 +213,14 @@ export default {
           }
         }),
         Placeholder.configure({
-          placeholder: 'Start writing...',
+          placeholder: ({ node }) => {
+            if (node.type.name === 'heading') {
+              return 'Welcome to the Vine'
+            }
+            return 'Welcome to The Vine'
+          },
+          showOnlyWhenEditable: true,
+          showOnlyCurrent: true,
         }),
         Underline,
         TextAlign.configure({
@@ -209,7 +228,7 @@ export default {
         }),
         Highlight,
       ],
-      content: '<p>Start writing...</p>',
+      content: '',
       editorProps: {
         attributes: {
           class: 'prose',
@@ -230,7 +249,17 @@ export default {
     }
 
     const loadDocument = async (docId) => {
-      const doc = await db.getDocument(docId)
+      // First try to fetch from public_documents table
+      let doc = await db.getPublicDocument(docId)
+      
+      // If not found, try documents table
+      if (!doc) {
+        doc = await db.getDocument(docId)
+        currentPublicDocId.value = null
+      } else {
+        currentPublicDocId.value = docId
+      }
+      
       if (doc) {
         currentDocId.value = doc.id
         docTitle.value = doc.title
@@ -249,15 +278,22 @@ export default {
         const content = editor.value?.getHTML()
         const title = docTitle.value || 'Untitled'
 
-        if (currentDocId.value) {
-          // Update existing document
+        if (currentPublicDocId.value) {
+          // Update public document
+          await db.updatePublicDocument(currentPublicDocId.value, {
+            title,
+            content
+          })
+          showToast('Saved to public library!')
+        } else if (currentDocId.value) {
+          // Update personal document
           await db.updateDocument(currentDocId.value, {
             title,
             content
           })
           showToast('Saved to library!')
         } else {
-          // Create new document
+          // Create new personal document
           const doc = await db.createDocument(currentUser.value.id, {
             title,
             content,
@@ -330,13 +366,30 @@ export default {
       editor.value?.destroy()
     })
 
+    const goBack = () => {
+      if (currentDocId.value) {
+        router.push(`/read?doc=${currentDocId.value}`)
+      } else {
+        router.push('/')
+      }
+    }
+
+    const handleSaveAndExit = async () => {
+      await handleSave()
+      if (currentDocId.value) {
+        router.push(`/read?doc=${currentDocId.value}`)
+      }
+    }
+
     return {
       docTitle,
       showToolbar,
       editor,
       wordCount,
       handleSave,
+      handleSaveAndExit,
       handlePublish,
+      goBack,
       toast,
       toastType
     }
@@ -364,9 +417,28 @@ export default {
 
 .header-left {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
   flex: 1;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: #f5f5f5;
+  color: #1a1a1a;
 }
 
 .doc-title {
@@ -392,22 +464,57 @@ export default {
   border-radius: 6px;
 }
 
-.publish-btn {
-  padding: 10px 24px;
-  background: #1a1a1a;
-  color: white;
-  border: none;
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.save-exit-btn {
+  padding: 10px 20px;
+  background: white;
+  color: #1a1a1a;
+  border: 1.5px solid #e0e0e0;
   border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   font-family: inherit;
 }
 
-.publish-btn:hover {
-  background: #333;
-  transform: translateY(-1px);
+.save-exit-btn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.save-exit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-btn {
+  padding: 10px 20px;
+  background: white;
+  color: #666;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.save-btn:hover {
+  background: #f5f5f5;
+  color: #1a1a1a;
+  border-color: #ccc;
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Editor Wrapper */
@@ -534,9 +641,28 @@ export default {
 .editor-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   float: left;
-  color: #adb5bd;
+  color: #ccc;
+  opacity: 1;
   pointer-events: none;
   height: 0;
+  font-size: 18px;
+}
+
+.editor-content :deep(.ProseMirror h1.is-editor-empty:first-child::before),
+.editor-content :deep(.ProseMirror h2.is-editor-empty:first-child::before),
+.editor-content :deep(.ProseMirror h3.is-editor-empty:first-child::before) {
+  content: attr(data-placeholder);
+  float: left;
+  color: #ccc;
+  opacity: 1;
+  pointer-events: none;
+  height: 0;
+}
+
+.editor-content :deep(.ProseMirror h1.is-editor-empty:first-child::before) {
+  font-size: 36px;
+  font-weight: 700;
+  color: #ccc;
 }
 
 .editor-content :deep(h1) {

@@ -113,23 +113,50 @@ export function useDatabase() {
   }
 
   /**
-   * Publish a document to public library
+   * Publish a document to public library (creates a COPY, original stays in personal)
    */
   const publishDocument = async (docId) => {
-    return updateDocument(docId, {
-      is_published: true,
-      published_at: new Date().toISOString()
-    })
+    // First get the original document
+    const original = await getDocument(docId)
+    if (!original) throw new Error('Document not found')
+    
+    // Create a COPY for public library
+    const { data, error: err } = await supabase
+      .from('public_documents')
+      .insert({
+        title: original.title,
+        content: original.content,
+        user_id: original.user_id,
+        user_email: original.user_email,
+        folder: original.folder,
+        original_doc_id: original.id,
+        published_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (err) {
+      console.error('Error publishing document:', err)
+      throw err
+    }
+    return data
   }
 
   /**
-   * Unpublish a document
+   * Unpublish a document (remove from public, original stays in personal)
    */
-  const unpublishDocument = async (docId) => {
-    return updateDocument(docId, {
-      is_published: false,
-      published_at: null
-    })
+  const unpublishDocument = async (publicDocId) => {
+    const { error: err } = await supabase
+      .from('public_documents')
+      .delete()
+      .eq('id', publicDocId)
+
+    if (err) {
+      console.error('Error unpublishing document:', err)
+      throw err
+    }
   }
 
   /**
@@ -144,7 +171,7 @@ export function useDatabase() {
   }
 
   /**
-   * Delete a document
+   * Delete a document from personal library
    */
   const deleteDocument = async (docId) => {
     const { error: err } = await supabase
@@ -158,18 +185,124 @@ export function useDatabase() {
     }
   }
 
+  /**
+   * Delete a document from public library
+   */
+  const deletePublicDocument = async (publicDocId) => {
+    const { error: err } = await supabase
+      .from('public_documents')
+      .delete()
+      .eq('id', publicDocId)
+
+    if (err) {
+      console.error('Error deleting public document:', err)
+      throw err
+    }
+  }
+
+  /**
+   * Get all public documents
+   */
+  const getPublicDocuments = async () => {
+    const { data, error: err } = await supabase
+      .from('public_documents')
+      .select('*')
+      .order('published_at', { ascending: false })
+
+    if (err) {
+      console.error('Error fetching public documents:', err)
+      return []
+    }
+    return data || []
+  }
+
+  /**
+   * Get a single public document by ID
+   */
+  const getPublicDocument = async (publicDocId) => {
+    const { data, error: err } = await supabase
+      .from('public_documents')
+      .select('*')
+      .eq('id', publicDocId)
+      .single()
+
+    if (err) {
+      console.error('Error fetching public document:', err)
+      return null
+    }
+    return data
+  }
+
+  /**
+   * Update a public document
+   */
+  const updatePublicDocument = async (publicDocId, updates) => {
+    const { data, error: err } = await supabase
+      .from('public_documents')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', publicDocId)
+      .select()
+      .single()
+
+    if (err) {
+      console.error('Error updating public document:', err)
+      throw err
+    }
+    return data
+  }
+
+  /**
+   * Move document to a folder (for drag & drop)
+   */
+  const moveDocumentToFolder = async (docId, folderName) => {
+    const { data, error: err } = await supabase
+      .from('documents')
+      .update({ folder: folderName })
+      .eq('id', docId)
+      .select()
+      .single()
+
+    if (err) {
+      console.error('Error moving document:', err)
+      throw err
+    }
+    return data
+  }
+
+  /**
+   * Move public document to a folder
+   */
+  const movePublicDocumentToFolder = async (publicDocId, folderName) => {
+    const { data, error: err } = await supabase
+      .from('public_documents')
+      .update({ folder: folderName })
+      .eq('id', publicDocId)
+      .select()
+      .single()
+
+    if (err) {
+      console.error('Error moving public document:', err)
+      throw err
+    }
+    return data
+  }
+
   // =====================================================
   // FOLDERS
   // =====================================================
 
   /**
-   * Get all folders for a user
+   * Get all folders for a user (personal or public)
    */
-  const getFolders = async (userId) => {
+  const getFolders = async (userId, isPublic = false) => {
     const { data, error: err } = await supabase
       .from('folders')
       .select('*')
       .eq('user_id', userId)
+      .eq('is_public', isPublic)
       .order('name', { ascending: true })
 
     if (err) {
@@ -180,14 +313,31 @@ export function useDatabase() {
   }
 
   /**
+   * Get all public folders (no user filter needed)
+   */
+  const getPublicFolders = async () => {
+    const { data, error: err } = await supabase
+      .from('public_folders')
+      .select('*')
+      .order('name', { ascending: true })
+
+    if (err) {
+      console.error('Error fetching public folders:', err)
+      return []
+    }
+    return data || []
+  }
+
+  /**
    * Create a new folder
    */
-  const createFolder = async (userId, name) => {
+  const createFolder = async (userId, name, isPublic = false) => {
     const { data, error: err } = await supabase
-      .from('folders')
+      .from(isPublic ? 'public_folders' : 'folders')
       .insert({
         user_id: userId,
         name: name.trim(),
+        is_public: isPublic,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -199,6 +349,21 @@ export function useDatabase() {
       throw err
     }
     return data
+  }
+
+  /**
+   * Delete a folder from public library
+   */
+  const deletePublicFolder = async (folderId) => {
+    const { error: err } = await supabase
+      .from('public_folders')
+      .delete()
+      .eq('id', folderId)
+
+    if (err) {
+      console.error('Error deleting public folder:', err)
+      throw err
+    }
   }
 
   /**
@@ -337,12 +502,21 @@ export function useDatabase() {
     unpublishDocument,
     duplicateDocument,
     deleteDocument,
+    // Public Documents
+    getPublicDocuments,
+    getPublicDocument,
+    updatePublicDocument,
+    deletePublicDocument,
+    moveDocumentToFolder,
+    movePublicDocumentToFolder,
     // Folders
     getFolders,
+    getPublicFolders,
     createFolder,
     renameFolder,
     renameFolderWithDocuments,
     deleteFolder,
+    deletePublicFolder,
     // Real-time
     subscribeToDocuments,
     subscribeToFolders

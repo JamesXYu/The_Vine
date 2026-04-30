@@ -1,141 +1,204 @@
 <template>
-  <div class="settings-layout">
-    <!-- Fixed Sidebar -->
-    <aside class="settings-sidebar">
-      <h2>Settings</h2>
-      <nav class="settings-nav">
-        <button 
-          :class="{ active: activeSection === 'profile' }" 
-          @click="activeSection = 'profile'"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
-          </svg>
-          Profile
-        </button>
-        <button 
-          :class="{ active: activeSection === 'account' }" 
-          @click="activeSection = 'account'"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          Account
-        </button>
-        <button 
-          :class="{ active: activeSection === 'danger' }" 
-          @click="activeSection = 'danger'"
-          class="danger-btn"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          Danger Zone
-        </button>
-      </nav>
-    </aside>
+  <div class="settings-page">
+    <header class="settings-header">
+      <h1>Settings</h1>
+      <p>Manage your account preferences</p>
+    </header>
 
-    <!-- Floating Content -->
-    <main class="settings-content">
+    <!-- Settings Sections -->
+    <div class="settings-sections">
       <!-- Profile Section -->
-      <section v-if="activeSection === 'profile'" class="settings-section">
-        <h3>Profile</h3>
-        <p class="section-desc">Your public profile information</p>
+      <section class="settings-card">
+        <div class="card-header">
+          <div class="card-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div>
+            <h3>Profile</h3>
+            <p>Your public profile information</p>
+          </div>
+        </div>
 
-        <div class="avatar-section">
-          <div class="avatar-preview" @click="triggerAvatarUpload">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="Profile" class="avatar-img" />
-            <div v-else class="avatar-placeholder">{{ userInitials }}</div>
-            <div class="avatar-overlay">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
+        <div class="card-body">
+          <!-- Avatar -->
+          <div class="avatar-row">
+            <div class="avatar-wrapper" @click="triggerAvatarUpload">
+              <img v-if="avatarUrl" :src="avatarUrl" alt="Profile" class="avatar-img" />
+              <div v-else class="avatar-placeholder">{{ userInitials }}</div>
+              <div class="avatar-overlay">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
+            </div>
+            <input type="file" ref="avatarInput" @change="handleAvatarChange" accept="image/*" style="display: none" />
+            <div class="avatar-text">
+              <span class="avatar-label">Profile Photo</span>
+              <span class="avatar-hint">JPG, PNG or GIF. Max 2MB</span>
             </div>
           </div>
-          <input type="file" ref="avatarInput" @change="handleAvatarChange" accept="image/*" style="display: none" />
-          <div class="avatar-info">
-            <p class="avatar-hint">Click to upload a new photo</p>
-            <p class="avatar-formats">JPG, PNG or GIF. Max 2MB</p>
+
+          <!-- Form Fields -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Display Name</label>
+              <input v-model="displayName" type="text" class="input" placeholder="Enter your display name" />
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input :value="email" type="email" class="input" disabled />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Bio</label>
+            <textarea v-model="bio" class="input textarea" rows="3" placeholder="Tell us about yourself"></textarea>
+          </div>
+
+          <div class="card-actions">
+            <button class="btn-primary" @click="saveProfile" :disabled="saving">
+              {{ saving ? 'Saving...' : 'Save Changes' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Security Section -->
+      <section class="settings-card">
+        <div class="card-header">
+          <div class="card-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div>
+            <h3>Security</h3>
+            <p>Password and authentication</p>
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Display Name</label>
-          <input v-model="displayName" type="text" placeholder="Enter your display name" class="input" />
+        <div class="card-body">
+          <div class="security-item">
+            <div class="security-info">
+              <span class="security-label">Password</span>
+              <span class="security-hint">Last changed: Never</span>
+            </div>
+            <button class="btn-secondary" @click="showPasswordModal = true">
+              Change Password
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Appearance Section -->
+      <section class="settings-card">
+        <div class="card-header">
+          <div class="card-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+          </div>
+          <div>
+            <h3>Appearance</h3>
+            <p>Customize how it looks</p>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>Bio</label>
-          <textarea v-model="bio" placeholder="Tell us about yourself" class="input textarea" rows="3"></textarea>
+        <div class="card-body">
+          <div class="appearance-item">
+            <span class="appearance-label">Theme</span>
+            <div class="theme-options">
+              <button 
+                class="theme-btn" 
+                :class="{ active: theme === 'light' }"
+                @click="theme = 'light'"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="5"/>
+                  <line x1="12" y1="1" x2="12" y2="3"/>
+                  <line x1="12" y1="21" x2="12" y2="23"/>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                  <line x1="1" y1="12" x2="3" y2="12"/>
+                  <line x1="21" y1="12" x2="23" y2="12"/>
+                </svg>
+                Light
+              </button>
+              <button 
+                class="theme-btn" 
+                :class="{ active: theme === 'dark' }"
+                @click="theme = 'dark'"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+                Dark
+              </button>
+            </div>
+          </div>
         </div>
-
-        <button class="btn-primary" @click="saveProfile" :disabled="saving">
-          {{ saving ? 'Saving...' : 'Save Changes' }}
-        </button>
       </section>
 
       <!-- Account Section -->
-      <section v-if="activeSection === 'account'" class="settings-section">
-        <h3>Account</h3>
-        <p class="section-desc">Email and authentication settings</p>
-
-        <div class="form-group">
-          <label>Email Address</label>
-          <div class="input-with-badge">
-            <input :value="email" type="email" disabled class="input disabled" />
-            <span class="badge">Verified</span>
+      <section class="settings-card danger-zone">
+        <div class="card-header">
+          <div class="card-icon danger">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
           </div>
-          <p class="form-hint">Your email address is used for login and notifications</p>
+          <div>
+            <h3>Danger Zone</h3>
+            <p>Irreversible actions</p>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>Password</label>
-          <button class="btn-secondary" @click="showPasswordModal = true">
-            Change Password
-          </button>
+        <div class="card-body">
+          <div class="danger-item">
+            <div class="danger-info">
+              <span class="danger-label">Delete Account</span>
+              <span class="danger-desc">Permanently delete your account and all data</span>
+            </div>
+            <button class="btn-danger" @click="showDeleteModal = true">
+              Delete Account
+            </button>
+          </div>
         </div>
       </section>
-
-      <!-- Danger Zone Section -->
-      <section v-if="activeSection === 'danger'" class="settings-section danger">
-        <h3>Danger Zone</h3>
-        <p class="section-desc">Irreversible actions</p>
-
-        <div class="danger-item">
-          <div class="danger-info">
-            <h4>Delete Account</h4>
-            <p>Permanently delete your account and all associated data. This action cannot be undone.</p>
-          </div>
-          <button class="btn-danger" @click="showDeleteModal = true">
-            Delete Account
-          </button>
-        </div>
-      </section>
-    </main>
+    </div>
 
     <!-- Password Modal -->
     <div v-if="showPasswordModal" class="modal-overlay" @click.self="showPasswordModal = false">
       <div class="modal">
         <h3>Change Password</h3>
-        <div class="form-group">
-          <label>Current Password</label>
-          <input v-model="currentPassword" type="password" class="input" placeholder="Enter current password" />
-        </div>
-        <div class="form-group">
-          <label>New Password</label>
-          <input v-model="newPassword" type="password" class="input" placeholder="Enter new password" />
-        </div>
-        <div class="form-group">
-          <label>Confirm New Password</label>
-          <input v-model="confirmPassword" type="password" class="input" placeholder="Confirm new password" />
+        <div class="modal-body">
+          <div class="form-group">
+            <label>New Password</label>
+            <input v-model="newPassword" type="password" class="input" placeholder="Enter new password" />
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <input v-model="confirmPassword" type="password" class="input" placeholder="Confirm new password" />
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showPasswordModal = false">Cancel</button>
-          <button class="btn-primary" @click="changePassword" :disabled="changingPassword">
+          <button class="btn-primary" @click="changePassword" :disabled="changingPassword || !newPassword || !confirmPassword">
             {{ changingPassword ? 'Updating...' : 'Update Password' }}
           </button>
         </div>
@@ -144,15 +207,16 @@
 
     <!-- Delete Account Modal -->
     <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
-      <div class="modal">
-        <h3 class="danger-title">Delete Account</h3>
-        <p class="modal-warning">
-          Are you absolutely sure? This will permanently delete your account, 
-          remove all your documents, and cannot be undone.
-        </p>
-        <div class="form-group">
-          <label>Type "DELETE" to confirm</label>
-          <input v-model="deleteConfirm" type="text" class="input" placeholder="DELETE" />
+      <div class="modal danger">
+        <h3>Delete Account</h3>
+        <div class="modal-body">
+          <p class="warning-text">
+            This will permanently delete your account, remove all your documents, and cannot be undone.
+          </p>
+          <div class="form-group">
+            <label>Type "DELETE" to confirm</label>
+            <input v-model="deleteConfirm" type="text" class="input" placeholder="DELETE" />
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showDeleteModal = false">Cancel</button>
@@ -164,7 +228,9 @@
     </div>
 
     <!-- Toast -->
-    <div v-if="toast" class="toast" :class="toastType">{{ toast }}</div>
+    <div v-if="toast" class="toast" :class="toastType">
+      {{ toast }}
+    </div>
   </div>
 </template>
 
@@ -181,8 +247,8 @@ export default {
     const avatarUrl = ref('')
     const avatarFile = ref(null)
     const avatarInput = ref(null)
+    const theme = ref('light')
     
-    const activeSection = ref('profile')
     const saving = ref(false)
     const showPasswordModal = ref(false)
     const showDeleteModal = ref(false)
@@ -190,7 +256,6 @@ export default {
     const toast = ref('')
     const toastType = ref('success')
     
-    const currentPassword = ref('')
     const newPassword = ref('')
     const confirmPassword = ref('')
     const deleteConfirm = ref('')
@@ -220,10 +285,18 @@ export default {
     }
 
     const saveProfile = async () => {
+      if (!displayName.value.trim()) {
+        showToast('Display name is required', 'error')
+        return
+      }
+      
       saving.value = true
       try {
         const { error: updateError } = await supabase.auth.updateUser({
-          data: { display_name: displayName.value, bio: bio.value }
+          data: { 
+            display_name: displayName.value, 
+            bio: bio.value 
+          }
         })
         if (updateError) throw updateError
 
@@ -239,6 +312,7 @@ export default {
         }
         showToast('Profile updated successfully!')
       } catch (error) {
+        console.error('Error saving profile:', error)
         showToast('Failed to update profile', 'error')
       } finally {
         saving.value = false
@@ -254,16 +328,18 @@ export default {
         showToast('Password must be at least 6 characters', 'error')
         return
       }
+      
       changingPassword.value = true
       try {
         const { error } = await supabase.auth.updateUser({ password: newPassword.value })
         if (error) throw error
+        
         showPasswordModal.value = false
-        currentPassword.value = ''
         newPassword.value = ''
         confirmPassword.value = ''
         showToast('Password updated successfully!')
       } catch (error) {
+        console.error('Error changing password:', error)
         showToast('Failed to update password', 'error')
       } finally {
         changingPassword.value = false
@@ -272,13 +348,21 @@ export default {
 
     const deleteAccount = async () => {
       if (deleteConfirm.value !== 'DELETE') return
+      
       try {
         const { data: { user } } = await supabase.auth.getUser()
+        
+        // Delete user's documents
         await supabase.from('documents').delete().eq('user_id', user.id)
+        await supabase.from('public_documents').delete().eq('user_id', user.id)
+        await supabase.from('folders').delete().eq('user_id', user.id)
+        await supabase.from('public_folders').delete().eq('user_id', user.id)
+        
         await supabase.auth.signOut()
         showToast('Account deleted. Redirecting...', 'success')
         setTimeout(() => { window.location.reload() }, 2000)
       } catch (error) {
+        console.error('Error deleting account:', error)
         showToast('Failed to delete account', 'error')
       }
     }
@@ -295,9 +379,9 @@ export default {
 
     return {
       email, displayName, bio, avatarUrl, avatarInput,
-      activeSection, saving, showPasswordModal, showDeleteModal,
-      changingPassword, currentPassword, newPassword, confirmPassword,
-      deleteConfirm, toast, toastType, userInitials,
+      saving, showPasswordModal, showDeleteModal,
+      changingPassword, newPassword, confirmPassword,
+      deleteConfirm, toast, toastType, userInitials, theme,
       triggerAvatarUpload, handleAvatarChange, saveProfile,
       changePassword, deleteAccount
     }
@@ -306,116 +390,96 @@ export default {
 </script>
 
 <style scoped>
-.settings-layout {
-  display: flex;
-  min-height: calc(100vh - 48px);
-}
-
-/* Fixed Sidebar */
-.settings-sidebar {
-  width: 240px;
-  background: white;
-  border-right: 1px solid #eee;
-  padding: 24px 16px;
-  position: fixed;
-  top: 48px;
-  left: 0;
-  bottom: 0;
-  overflow-y: auto;
-}
-
-.settings-sidebar h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 24px;
-  padding: 0 12px;
-}
-
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.settings-nav button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border: none;
-  background: transparent;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #6c757d;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-}
-
-.settings-nav button:hover {
-  background: #f5f5f5;
-  color: #1a1a1a;
-}
-
-.settings-nav button.active {
-  background: #1a1a1a;
-  color: white;
-}
-
-.settings-nav button.danger-btn {
-  margin-top: 24px;
-  color: #dc3545;
-}
-
-.settings-nav button.danger-btn:hover {
-  background: #fff5f5;
-}
-
-.settings-nav button.danger-btn.active {
-  background: #dc3545;
-  color: white;
-}
-
-/* Floating Content */
-.settings-content {
-  flex: 1;
-  margin-left: 240px;
+.settings-page {
   padding: 32px 48px;
-  max-width: 640px;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
-.settings-section {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
+.settings-header {
+  margin-bottom: 32px;
 }
 
-.settings-section h3 {
-  font-size: 20px;
-  font-weight: 600;
+.settings-header h1 {
+  font-size: 28px;
+  font-weight: 700;
   color: #1a1a1a;
   margin-bottom: 4px;
 }
 
-.section-desc {
+.settings-header p {
   font-size: 14px;
   color: #6c757d;
-  margin-bottom: 28px;
+}
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.settings-card.danger-zone {
+  border: 1px solid #f5c6cb;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  background: #f5f5f5;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+}
+
+.card-icon.danger {
+  background: #fff5f5;
+  color: #dc3545;
+}
+
+.card-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.card-header p {
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.card-body {
+  padding: 24px;
 }
 
 /* Avatar */
-.avatar-section {
+.avatar-row {
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 28px;
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
-.avatar-preview {
-  width: 80px;
-  height: 80px;
+.avatar-wrapper {
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   overflow: hidden;
   cursor: pointer;
@@ -435,7 +499,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: white;
 }
@@ -452,42 +516,55 @@ export default {
   transition: opacity 0.2s;
 }
 
-.avatar-preview:hover .avatar-overlay {
+.avatar-wrapper:hover .avatar-overlay {
   opacity: 1;
 }
 
-.avatar-info { flex: 1; }
+.avatar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
-.avatar-hint {
+.avatar-label {
   font-size: 14px;
   font-weight: 500;
   color: #1a1a1a;
-  margin-bottom: 4px;
 }
 
-.avatar-formats {
+.avatar-hint {
   font-size: 12px;
   color: #6c757d;
 }
 
 /* Form */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
 }
 
 .form-group label {
   display: block;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: #1a1a1a;
   margin-bottom: 8px;
 }
 
 .input {
   width: 100%;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border: 1px solid #e9ecef;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 14px;
   transition: all 0.2s;
   font-family: inherit;
@@ -499,7 +576,7 @@ export default {
   box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
 }
 
-.input.disabled {
+.input:disabled {
   background: #f8f9fa;
   color: #6c757d;
   cursor: not-allowed;
@@ -510,63 +587,110 @@ export default {
   min-height: 80px;
 }
 
-.form-hint {
-  font-size: 12px;
-  color: #6c757d;
-  margin-top: 6px;
+.card-actions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0;
 }
 
-.input-with-badge {
+/* Security */
+.security-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
 }
 
-.input-with-badge .input {
-  flex: 1;
+.security-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.badge {
-  padding: 4px 10px;
-  background: #d4edda;
-  color: #155724;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 20px;
+.security-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
 }
 
-/* Danger Zone */
-.settings-section.danger {
-  border: 1px solid #f5c6cb;
+.security-hint {
+  font-size: 12px;
+  color: #6c757d;
 }
 
+/* Appearance */
+.appearance-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.appearance-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.theme-options {
+  display: flex;
+  gap: 8px;
+}
+
+.theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #e9ecef;
+  background: white;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-btn:hover {
+  border-color: #ccc;
+  color: #1a1a1a;
+}
+
+.theme-btn.active {
+  border-color: #1a1a1a;
+  background: #1a1a1a;
+  color: white;
+}
+
+/* Danger */
 .danger-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
 }
 
-.danger-info h4 {
-  font-size: 15px;
-  font-weight: 600;
+.danger-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.danger-label {
+  font-size: 14px;
+  font-weight: 500;
   color: #1a1a1a;
-  margin-bottom: 4px;
 }
 
-.danger-info p {
-  font-size: 13px;
+.danger-desc {
+  font-size: 12px;
   color: #6c757d;
-  max-width: 320px;
 }
 
 /* Buttons */
 .btn-primary {
-  padding: 12px 24px;
+  padding: 10px 20px;
   background: #1a1a1a;
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -583,13 +707,13 @@ export default {
 }
 
 .btn-secondary {
-  padding: 12px 24px;
+  padding: 10px 20px;
   background: white;
   color: #1a1a1a;
   border: 1px solid #e9ecef;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -600,16 +724,15 @@ export default {
 }
 
 .btn-danger {
-  padding: 12px 24px;
+  padding: 10px 20px;
   background: #dc3545;
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  white-space: nowrap;
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -634,32 +757,36 @@ export default {
 
 .modal {
   background: white;
-  padding: 32px;
-  border-radius: 20px;
+  padding: 28px;
+  border-radius: 16px;
   width: 100%;
-  max-width: 420px;
+  max-width: 400px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
 }
 
 .modal h3 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: #1a1a1a;
   margin-bottom: 20px;
 }
 
-.modal h3.danger-title {
+.modal.danger h3 {
   color: #dc3545;
 }
 
-.modal-warning {
+.modal-body {
+  margin-bottom: 24px;
+}
+
+.warning-text {
   font-size: 14px;
   color: #6c757d;
-  line-height: 1.6;
-  margin-bottom: 24px;
-  padding: 16px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  padding: 12px;
   background: #fff5f5;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #f5c6cb;
 }
 
@@ -667,7 +794,6 @@ export default {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: 24px;
 }
 
 /* Toast */
@@ -678,7 +804,7 @@ export default {
   padding: 14px 24px;
   background: #1a1a1a;
   color: white;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
