@@ -217,7 +217,7 @@ export default {
             if (node.type.name === 'heading') {
               return 'Welcome to the Vine'
             }
-            return 'Welcome to The Vine'
+            return 'start your note here'
           },
           showOnlyWhenEditable: true,
           showOnlyCurrent: true,
@@ -359,6 +359,10 @@ export default {
       const docId = route.query.doc
       if (docId) {
         await loadDocument(docId)
+      } else {
+        // Only set H1 for new documents
+        editor.value?.commands.setHeading({ level: 1 })
+        editor.value?.commands.focus()
       }
     })
 
