@@ -297,12 +297,11 @@ export function useDatabase() {
   /**
    * Get all folders for a user (personal or public)
    */
-  const getFolders = async (userId, isPublic = false) => {
+  const getFolders = async (userId) => {
     const { data, error: err } = await supabase
       .from('folders')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_public', isPublic)
       .order('name', { ascending: true })
 
     if (err) {
@@ -331,13 +330,12 @@ export function useDatabase() {
   /**
    * Create a new folder
    */
-  const createFolder = async (userId, name, isPublic = false) => {
+  const createFolder = async (userId, name) => {
     const { data, error: err } = await supabase
-      .from(isPublic ? 'public_folders' : 'folders')
+      .from('folders')
       .insert({
         user_id: userId,
         name: name.trim(),
-        is_public: isPublic,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -346,6 +344,26 @@ export function useDatabase() {
 
     if (err) {
       console.error('Error creating folder:', err)
+      throw err
+    }
+    return data
+  }
+
+  /**
+   * Create a new public folder
+   */
+  const createPublicFolder = async (userId, name) => {
+    const { data, error: err } = await supabase
+      .from('public_folders')
+      .insert({
+        user_id: userId,
+        name: name.trim()
+      })
+      .select()
+      .single()
+
+    if (err) {
+      console.error('Error creating public folder:', err)
       throw err
     }
     return data
@@ -513,6 +531,7 @@ export function useDatabase() {
     getFolders,
     getPublicFolders,
     createFolder,
+    createPublicFolder,
     renameFolder,
     renameFolderWithDocuments,
     deleteFolder,

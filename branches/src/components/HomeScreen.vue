@@ -78,16 +78,43 @@
 
       <!-- Actions Bar -->
       <div class="actions-bar">
-        <div class="sort-options">
-          <button 
-            v-for="option in sortOptions" 
-            :key="option.value"
-            :class="{ active: sortBy === option.value }"
-            @click="sortBy = option.value"
-            class="sort-btn"
-          >
-            {{ option.label }}
+        <div class="actions-left">
+          <div class="sort-options">
+            <button 
+              v-for="option in sortOptions" 
+              :key="option.value"
+              :class="{ active: sortBy === option.value }"
+              @click="sortBy = option.value"
+              class="sort-btn"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <div class="view-toggle">
+            <button 
+              :class="{ active: viewMode === 'grid' }"
+              @click="viewMode = 'grid'"
+              class="view-btn"
+              title="Grid view"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+            </button>
+            <button 
+              :class="{ active: viewMode === 'list' }"
+              @click="viewMode = 'list'"
+              class="view-btn"
+              title="List view"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
           </button>
+        </div>
         </div>
         <button class="btn-secondary" @click="showNewFolderModal = true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -121,7 +148,7 @@
       <!-- Folder Grid -->
       <div v-if="currentFoldersInView.length > 0" class="items-section">
         <h3 class="section-title">Folders</h3>
-        <div class="items-grid">
+        <div class="items-grid" :class="viewMode">
           <div 
             v-for="folder in currentFoldersInView" 
             :key="folder.id" 
@@ -155,7 +182,7 @@
       <!-- Documents Grid -->
       <div v-if="currentDocsInView.length > 0" class="items-section">
         <h3 class="section-title">Documents</h3>
-        <div class="items-grid">
+        <div class="items-grid" :class="viewMode">
           <div 
             v-for="doc in currentDocsInView" 
             :key="doc.id" 
@@ -181,12 +208,6 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </button>
-              <button class="action-btn" @click.stop="duplicateDocument(doc)" title="Duplicate">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                 </svg>
               </button>
               <button v-if="isAdmin" class="action-btn publish-btn" @click.stop="publishDocument(doc)" title="Publish">
@@ -302,7 +323,7 @@
       <!-- Public Documents Grid -->
       <div v-if="currentPublicDocsInView.length > 0" class="items-section">
         <h3 class="section-title">Published Documents</h3>
-        <div class="items-grid">
+        <div class="items-grid" :class="viewMode">
           <div 
             v-for="doc in currentPublicDocsInView" 
             :key="doc.id" 
@@ -448,12 +469,12 @@ export default {
     // State
     const activeTab = ref('personal')
     const searchQuery = ref('')
-    const sortBy = ref('recent')
+    const sortBy = ref('name')
     const sortOptions = [
-      { value: 'recent', label: 'Recent' },
       { value: 'name', label: 'Name' },
       { value: 'created', label: 'Created' }
     ]
+    const viewMode = ref('grid') // 'grid' or 'list'
     const currentFolder = ref(null)
     const folderMenuId = ref(null)
     const currentUser = ref(null)
@@ -504,7 +525,7 @@ export default {
 
     // Folders in current view (only direct children)
     const currentFoldersInView = computed(() => {
-      const folders = personalFolders.value.filter(folder => {
+      let folders = personalFolders.value.filter(folder => {
         const folderPath = folder.name
         if (currentFolder.value) {
           // Only show folders that are directly inside currentFolder
@@ -516,7 +537,7 @@ export default {
       })
       
       // Remove the prefix from nested folder names for display
-      return folders.map(f => {
+      folders = folders.map(f => {
         if (currentFolder.value) {
           return {
             ...f,
@@ -524,7 +545,16 @@ export default {
           }
         }
         return { ...f, displayName: f.name }
-      }).sort((a, b) => a.displayName.localeCompare(b.displayName))
+      })
+      
+      // Sort folders
+      if (sortBy.value === 'created') {
+        folders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      } else {
+        folders.sort((a, b) => a.displayName.localeCompare(b.displayName))
+      }
+      
+      return folders
     })
 
     // Documents in current view (only direct children)
@@ -543,12 +573,10 @@ export default {
       }
       
       // Sort
-      if (sortBy.value === 'name') {
-        docs.sort((a, b) => a.title.localeCompare(b.title))
-      } else if (sortBy.value === 'created') {
+      if (sortBy.value === 'created') {
         docs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       } else {
-        docs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+        docs.sort((a, b) => a.title.localeCompare(b.title))
       }
       
       return docs
@@ -573,9 +601,9 @@ export default {
       return currentPublicFolder.value.split('/')
     })
 
-    // Public folders in current view
+    // Public folders in current view (from public_folders table)
     const currentPublicFoldersInView = computed(() => {
-      const folders = publicFolders.value.filter(folder => {
+      let folders = publicFolders.value.filter(folder => {
         const folderPath = folder.name
         if (currentPublicFolder.value) {
           return folderPath.startsWith(currentPublicFolder.value + '/')
@@ -583,7 +611,7 @@ export default {
         return !folder.name.includes('/')
       })
       
-      return folders.map(f => {
+      folders = folders.map(f => {
         if (currentPublicFolder.value) {
           return {
             ...f,
@@ -596,7 +624,16 @@ export default {
           displayName: f.name,
           count: publicDocuments.value.filter(d => d.folder === f.name).length
         }
-      }).sort((a, b) => a.displayName.localeCompare(b.displayName))
+      })
+      
+      // Sort folders
+      if (sortBy.value === 'created') {
+        folders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      } else {
+        folders.sort((a, b) => a.displayName.localeCompare(b.displayName))
+      }
+      
+      return folders
     })
 
     // Public documents in current view
@@ -613,7 +650,12 @@ export default {
         docs = docs.filter(doc => doc.title.toLowerCase().includes(query))
       }
       
-      docs.sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
+      // Sort
+      if (sortBy.value === 'created') {
+        docs.sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
+      } else {
+        docs.sort((a, b) => a.title.localeCompare(b.title))
+      }
       
       return docs
     })
@@ -657,7 +699,7 @@ export default {
         }))
         
         // Load personal folders
-        const folders = await db.getFolders(user.id, false)
+        const folders = await db.getFolders(user.id)
         personalFolders.value = folders.map(f => ({
           ...f,
           user_email: userName,
@@ -791,6 +833,31 @@ export default {
     const confirmRenameFolder = async () => {
       if (!renameFolderName.value.trim() || !folderToRename.value || !currentUser.value) return
       
+      // Check if this is a public folder (virtual folder)
+      if (folderToRename.value.isPublic) {
+        try {
+          const oldPath = folderToRename.value.name
+          const docsInFolder = publicDocuments.value.filter(d => d.folder === oldPath)
+          
+          for (const doc of docsInFolder) {
+            const newPath = currentPublicFolder.value 
+              ? currentPublicFolder.value + '/' + renameFolderName.value.trim()
+              : renameFolderName.value.trim()
+            await db.movePublicDocumentToFolder(doc.id, newPath)
+          }
+          showToast('Folder renamed!')
+          showRenameModal.value = false
+          renameFolderName.value = ''
+          folderToRename.value = null
+          await loadData()
+          return
+        } catch (err) {
+          showToast('Failed to rename folder', 'error')
+          return
+        }
+      }
+      
+      // Personal folder rename
       try {
         await db.renameFolderWithDocuments(
           folderToRename.value.id, 
@@ -866,12 +933,14 @@ export default {
         const folderPath = currentPublicFolder.value 
           ? currentPublicFolder.value + '/' + newPublicFolderName.value.trim()
           : newPublicFolderName.value.trim()
-        await db.createFolder(currentUser.value.id, folderPath, true)
+        
+        await db.createPublicFolder(currentUser.value.id, folderPath)
         showToast('Folder created!')
         showNewPublicFolderModal.value = false
         newPublicFolderName.value = ''
         await loadData()
       } catch (err) {
+        console.error('Create folder error:', err)
         showToast('Failed to create folder', 'error')
       }
     }
@@ -882,18 +951,23 @@ export default {
     }
 
     const renamePublicFolder = (folder) => {
-      folderToRename.value = folder
-      renameFolderName.value = folder.name
+      folderToRename.value = { ...folder, isPublic: true }
+      renameFolderName.value = folder.displayName
       showRenameModal.value = true
       publicFolderMenuId.value = null
     }
 
     const deletePublicFolder = async (folder) => {
+      // Move all documents in this folder back to root
       try {
-        await db.deletePublicFolder(folder.id)
-        showToast('Folder deleted')
+        const docsInFolder = publicDocuments.value.filter(d => d.folder === folder.name)
+        for (const doc of docsInFolder) {
+          await db.movePublicDocumentToFolder(doc.id, null)
+        }
+        showToast('Folder deleted (documents moved to root)')
         await loadData()
       } catch (err) {
+        console.error('Delete folder error:', err)
         showToast('Failed to delete folder', 'error')
       }
       publicFolderMenuId.value = null
@@ -978,6 +1052,7 @@ export default {
       searchQuery,
       sortBy,
       sortOptions,
+      viewMode,
       currentFolder,
       currentPublicFolder,
       folderMenuId,
@@ -1204,6 +1279,12 @@ export default {
   margin-bottom: 20px;
 }
 
+.actions-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .sort-options {
   display: flex;
   gap: 4px;
@@ -1229,6 +1310,40 @@ export default {
 }
 
 .sort-btn.active {
+  background: white;
+  color: #1a1a1a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* View Toggle */
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: #f5f5f5;
+  border-radius: 10px;
+}
+
+.view-btn {
+  padding: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-btn:hover {
+  color: #1a1a1a;
+}
+
+.view-btn.active {
   background: white;
   color: #1a1a1a;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
@@ -1279,6 +1394,58 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 12px;
+}
+
+/* List View */
+.items-grid.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.items-grid.list .item-card {
+  flex-direction: row;
+  justify-content: flex-start;
+  padding: 12px 16px;
+  gap: 16px;
+  background: white;
+  border-radius: 8px;
+}
+
+.items-grid.list .item-card:hover {
+  background: #f8f9fa;
+}
+
+.items-grid.list .item-icon-large {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.items-grid.list .item-icon-large svg {
+  width: 24px;
+  height: 24px;
+}
+
+.items-grid.list .item-name {
+  flex: 1;
+  text-align: left;
+  font-size: 14px;
+  -webkit-line-clamp: 1;
+}
+
+.items-grid.list .item-date,
+.items-grid.list .item-author,
+.items-grid.list .item-count {
+  font-size: 12px;
+  min-width: 80px;
+  text-align: left;
+}
+
+.items-grid.list .item-actions {
+  opacity: 1;
+  margin-top: 0;
 }
 
 .item-card {
