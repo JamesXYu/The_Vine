@@ -18,7 +18,7 @@
             placeholder="Search documents..." 
           />
         </div>
-        <button class="btn-primary" @click="createNewDocument">
+        <button v-if="isAdmin || activeTab !== 'public'" class="btn-primary" @click="createNewDocument">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -320,6 +320,7 @@
               </svg>
             </div>
             <div class="item-name">{{ doc.title }}</div>
+            <div class="item-author">{{ doc.user_email }}</div>
             <div class="item-date">{{ formatDate(doc.published_at) }}</div>
             <div class="item-actions">
               <button v-if="isAdmin" class="action-btn" @click.stop="editPublicDocument(doc)" title="Edit">
@@ -761,13 +762,22 @@ export default {
       if (!newFolderName.value.trim() || !currentUser.value) return
       
       try {
-        await db.createFolder(currentUser.value.id, newFolderName.value)
+        console.log('Creating folder:', {
+          userId: currentUser.value.id,
+          name: newFolderName.value,
+          folder: currentFolder.value ? currentFolder.value + '/' + newFolderName.value.trim() : newFolderName.value.trim()
+        })
+        const folderPath = currentFolder.value 
+          ? currentFolder.value + '/' + newFolderName.value.trim()
+          : newFolderName.value.trim()
+        await db.createFolder(currentUser.value.id, folderPath)
         showToast('Folder created!')
         showNewFolderModal.value = false
         newFolderName.value = ''
         await loadData()
       } catch (err) {
-        showToast('Failed to create folder', 'error')
+        console.error('Create folder error:', err)
+        showToast('Failed to create folder - check RLS policies', 'error')
       }
     }
 
