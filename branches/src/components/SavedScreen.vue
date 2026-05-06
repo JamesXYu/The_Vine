@@ -34,7 +34,7 @@
         @click="openDocument(doc)"
       >
         <div class="doc-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
           </svg>
@@ -42,7 +42,7 @@
         <div class="doc-info">
           <div class="doc-title-row">
             <span class="doc-title">{{ doc.title }}</span>
-            <span v-if="doc.folder_tag" class="folder-tag" :style="{ background: doc.folder_tag.color }">
+            <span v-if="doc.folder_tag" class="folder-tag" :style="{ color: doc.folder_tag.color, borderColor: doc.folder_tag.color }">
               {{ doc.folder_tag.name }}
             </span>
           </div>
@@ -268,8 +268,8 @@ export default {
 .saved-doc-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: 20px;
+  padding: 20px 24px;
   cursor: pointer;
   transition: all 0.15s;
   border-bottom: 1px solid #f0f0f0;
@@ -303,7 +303,7 @@ export default {
 }
 
 .doc-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 500;
   color: #1a1a1a;
   white-space: nowrap;
@@ -316,13 +316,15 @@ export default {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 900;
   color: white;
   white-space: nowrap;
+  background: white;
+  border: 3.5px solid;
 }
 
 .doc-date {
-  font-size: 13px;
+  font-size: 14px;
   color: #999;
 }
 
@@ -333,8 +335,8 @@ export default {
 }
 
 .action-btn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
   border-radius: 8px;

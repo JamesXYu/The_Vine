@@ -113,21 +113,43 @@ export function useDatabase() {
   }
 
   /**
-   * Publish a document to public library (creates a COPY, original stays in personal)
+   * Publish a document to public library (MOVES the document, original is deleted from personal)
    */
   const publishDocument = async (docId) => {
     // First get the original document
     const original = await getDocument(docId)
     if (!original) throw new Error('Document not found')
     
-    // Create a COPY for public library
+    // Get current user info
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+    
+    // Get display name - ONLY from user_metadata, never expose email
+    let displayName = ''
+    
+    if (original.user_id === user.id) {
+      displayName = user.user_metadata?.display_name || ''
+    } else {
+      if (original.display_name) {
+        displayName = original.display_name
+      }
+    }
+    
+    console.log('Publishing document (move):', {
+      docId,
+      originalUserId: original.user_id,
+      currentUserId: user.id,
+      displayName
+    })
+    
+    // Insert into public library
     const { data, error: err } = await supabase
       .from('public_documents')
       .insert({
         title: original.title,
         content: original.content,
         user_id: original.user_id,
-        user_email: original.user_email,
+        display_name: displayName,
         folder: original.folder,
         original_doc_id: original.id,
         published_at: new Date().toISOString(),
@@ -139,8 +161,22 @@ export function useDatabase() {
 
     if (err) {
       console.error('Error publishing document:', err)
+      console.error('Supabase error details:', err.message, err.details, err.hint)
       throw err
     }
+    
+    // Delete the original from personal documents (it's a move, not a copy)
+    const { error: deleteErr } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', docId)
+
+    if (deleteErr) {
+      console.error('Error deleting original document after publish:', deleteErr)
+      // The document was published but original wasn't deleted - log warning but don't throw
+    }
+    
+    console.log('Document moved to public library successfully:', data.id)
     return data
   }
 
@@ -285,6 +321,42 @@ export function useDatabase() {
 
     if (err) {
       console.error('Error moving public document:', err)
+      throw err
+    }
+    return data
+  }
+
+  /**
+   * Move document out of its current folder (to root/parent level)
+   */
+  const moveDocumentOutOfFolder = async (docId) => {
+    const { data, error: err } = await supabase
+      .from('documents')
+      .update({ folder: null, updated_at: new Date().toISOString() })
+      .eq('id', docId)
+      .select()
+      .single()
+
+    if (err) {
+      console.error('Error moving document out of folder:', err)
+      throw err
+    }
+    return data
+  }
+
+  /**
+   * Move public document out of its current folder (to root/parent level)
+   */
+  const movePublicDocumentOutOfFolder = async (publicDocId) => {
+    const { data, error: err } = await supabase
+      .from('public_documents')
+      .update({ folder: null, updated_at: new Date().toISOString() })
+      .eq('id', publicDocId)
+      .select()
+      .single()
+
+    if (err) {
+      console.error('Error moving public document out of folder:', err)
       throw err
     }
     return data
@@ -752,6 +824,8 @@ export function useDatabase() {
     deletePublicDocument,
     moveDocumentToFolder,
     movePublicDocumentToFolder,
+    moveDocumentOutOfFolder,
+    movePublicDocumentOutOfFolder,
     // Folders
     getFolders,
     getPublicFolders,

@@ -329,7 +329,10 @@ export default {
             title,
             content
           })
-          await db.publishDocument(currentDocId.value)
+          const publishedDoc = await db.publishDocument(currentDocId.value)
+          // Document was moved to public library, clear current doc reference
+          currentDocId.value = null
+          router.replace(`/admin?doc=${publishedDoc.id}`)
         } else {
           // Create and publish
           const doc = await db.createDocument(currentUser.value.id, {
@@ -337,9 +340,10 @@ export default {
             content,
             folder: null
           })
-          currentDocId.value = doc.id
-          await db.publishDocument(doc.id)
-          router.replace(`/admin?doc=${doc.id}`)
+          const publishedDoc = await db.publishDocument(doc.id)
+          // Document was moved to public library
+          currentDocId.value = null
+          router.replace(`/admin?doc=${publishedDoc.id}`)
         }
         showToast('Published to public library!')
       } catch (err) {

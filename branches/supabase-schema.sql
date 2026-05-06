@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public_documents (
   title TEXT NOT NULL DEFAULT 'Untitled',
   content TEXT DEFAULT '',
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  user_email TEXT DEFAULT '',
+  display_name TEXT DEFAULT '',
   folder TEXT DEFAULT NULL,
   original_doc_id UUID DEFAULT NULL,
   published_at TIMESTAMPTZ DEFAULT NOW(),

@@ -60,7 +60,10 @@
     <div v-if="activeTab === 'personal'" class="tab-content">
       <!-- Breadcrumb Navigation -->
       <div class="breadcrumb">
-        <button @click="navigateToFolder(null)" class="breadcrumb-item" :class="{ active: !currentFolder }">
+        <button @click="navigateToFolder(null)" class="breadcrumb-item" :class="{ active: !currentFolder, 'drag-over': dragOverBreadcrumb === 'root' }"
+          @dragover.prevent="handleBreadcrumbDragOver($event, 'root')"
+          @dragleave="handleBreadcrumbDragLeave"
+          @drop="handleDropOnBreadcrumb($event, null)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
           </svg>
@@ -70,7 +73,10 @@
           <svg class="breadcrumb-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 18 15 12 9 6"/>
           </svg>
-          <button @click="navigateToFolder(crumb)" class="breadcrumb-item" :class="{ active: index === breadcrumbPath.length - 1 }">
+          <button @click="navigateToFolder(crumb)" class="breadcrumb-item" :class="{ active: index === breadcrumbPath.length - 1, 'drag-over': dragOverBreadcrumb === crumb }"
+            @dragover.prevent="handleBreadcrumbDragOver($event, crumb)"
+            @dragleave="handleBreadcrumbDragLeave"
+            @drop="handleDropOnBreadcrumb($event, crumb)">
             {{ crumb }}
           </button>
         </template>
@@ -159,7 +165,7 @@
             @dragleave="handleDragLeave"
             @drop="handleDropOnFolder($event, folder)"
           >
-            <div class="item-icon-large folder-icon">
+            <div class="item-icon-large folder-icon" :style="{ color: folder.tag_color || '#c0c0c0' }">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               </svg>
@@ -172,6 +178,7 @@
               </svg>
             </button>
             <div v-if="folderMenuId === folder.id" class="item-dropdown">
+              <button @click="openTagManagement(folder)">Tag</button>
               <button @click="renameFolder(folder)">Rename</button>
               <button @click="confirmDeleteFolder(folder)">Delete</button>
             </div>
@@ -233,7 +240,10 @@
     <div v-if="activeTab === 'public'" class="tab-content">
       <!-- Breadcrumb Navigation for Public -->
       <div class="breadcrumb">
-        <button @click="navigateToPublicFolder(null)" class="breadcrumb-item" :class="{ active: !currentPublicFolder }">
+        <button @click="navigateToPublicFolder(null)" class="breadcrumb-item" :class="{ active: !currentPublicFolder, 'drag-over': dragOverBreadcrumb === 'root' }"
+          @dragover.prevent="handleBreadcrumbDragOver($event, 'root')"
+          @dragleave="handleBreadcrumbDragLeave"
+          @drop="handleDropOnBreadcrumb($event, null)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <line x1="2" y1="12" x2="22" y2="12"/>
@@ -245,7 +255,10 @@
           <svg class="breadcrumb-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 18 15 12 9 6"/>
           </svg>
-          <button @click="navigateToPublicFolder(crumb)" class="breadcrumb-item" :class="{ active: index === publicBreadcrumbPath.length - 1 }">
+          <button @click="navigateToPublicFolder(crumb)" class="breadcrumb-item" :class="{ active: index === publicBreadcrumbPath.length - 1, 'drag-over': dragOverBreadcrumb === crumb }"
+            @dragover.prevent="handleBreadcrumbDragOver($event, crumb)"
+            @dragleave="handleBreadcrumbDragLeave"
+            @drop="handleDropOnBreadcrumb($event, crumb)">
             {{ crumb }}
           </button>
         </template>
@@ -327,7 +340,7 @@
             @dragleave="handleDragLeave"
             @drop="handleDropOnFolder($event, folder)"
           >
-            <div class="item-icon-large folder-icon">
+            <div class="item-icon-large folder-icon" :style="{ color: folder.tag_color || '#c0c0c0' }">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               </svg>
@@ -340,6 +353,7 @@
               </svg>
             </button>
             <div v-if="publicFolderMenuId === folder.id" class="item-dropdown">
+              <button @click="openPublicTagManagement(folder)">Tag</button>
               <button @click="renamePublicFolder(folder)">Rename</button>
               <button @click="deletePublicFolder(folder)">Delete</button>
             </div>
@@ -368,7 +382,7 @@
               </svg>
             </div>
             <div class="item-name">{{ doc.title }}</div>
-            <div class="item-author">{{ doc.user_email }}</div>
+            <div class="item-author">{{ doc.display_name || 'Anonymous' }}</div>
             <div class="item-date">{{ formatDate(doc.published_at) }}</div>
             <div class="item-actions">
               <button v-if="isAdmin" class="action-btn" @click.stop="editPublicDocument(doc)" title="Edit">
@@ -421,7 +435,8 @@
               class="color-circle"
               :class="{ active: newPublicFolderTagColor === color }"
               :style="{ background: color }"
-              @click="selectPublicFolderColor(color)"
+              type="button"
+              @click.prevent.stop="selectPublicFolderColor(color)"
               :title="color"
             >
               <svg v-if="newPublicFolderTagColor === color" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
@@ -487,7 +502,8 @@
               class="color-circle"
               :class="{ active: newFolderTagColor === color }"
               :style="{ background: color }"
-              @click="selectFolderColor(color)"
+              type="button"
+              @click.prevent.stop="selectFolderColor(color)"
               :title="color"
             >
               <svg v-if="newFolderTagColor === color" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
@@ -524,6 +540,49 @@
           <button class="btn-primary" @click="confirmRenameFolder" :disabled="!renameFolderName.trim()">
             Rename
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Management Modal -->
+    <div v-if="showTagManagementModal" class="modal-overlay" @click.self="showTagManagementModal = false">
+      <div class="modal">
+        <h3>Tag Management</h3>
+        <div class="form-group">
+          <label>Tag Name</label>
+          <input 
+            v-model="tagManagementName" 
+            type="text" 
+            class="input" 
+            placeholder="e.g. Important, Draft"
+          />
+        </div>
+        <div class="form-group">
+          <label>Tag Color</label>
+          <div class="color-palette">
+            <button
+              v-for="color in colorPalette"
+              :key="color"
+              class="color-circle"
+              :class="{ active: tagManagementColor === color }"
+              :style="{ background: color }"
+              type="button"
+              @click.prevent.stop="tagManagementColor = color"
+              :title="color"
+            >
+              <svg v-if="tagManagementColor === color" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-danger-outline" v-if="tagManagementFolder?.tag_name" @click="removeTag">Remove Tag</button>
+          <div v-else></div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary" @click="showTagManagementModal = false">Cancel</button>
+            <button class="btn-primary" @click="saveTagManagement">Save</button>
+          </div>
         </div>
       </div>
     </div>
@@ -595,6 +654,7 @@ export default {
     const showRenameModal = ref(false)
     const showDeleteModal = ref(false)
     const showPublishConfirmModal = ref(false)
+    const showTagManagementModal = ref(false)
     const docToPublish = ref(null)
     const newFolderName = ref('')
     const newFolderTagName = ref('')
@@ -603,25 +663,29 @@ export default {
     const newPublicFolderTagName = ref('')
     const newPublicFolderTagColor = ref('#6b7280')
     const renameFolderName = ref('')
+    const tagManagementFolder = ref(null)
+    const tagManagementName = ref('')
+    const tagManagementColor = ref('#6b7280')
+    const tagManagementIsPublic = ref(false)
     
     // Color palette for tag selection
     const colorPalette = [
-      '#ef4444', // Red
-      '#f97316', // Orange
-      '#f59e0b', // Amber
-      '#10b981', // Green
-      '#06b6d4', // Cyan
-      '#3b82f6', // Blue
-      '#6366f1', // Indigo
-      '#8b5cf6', // Violet
-      '#ec4899', // Pink
-      '#6b7280', // Gray
-      '#14b8a6', // Teal
-      '#84cc16', // Lime
-      '#eab308', // Yellow
-      '#ea580c', // Orange-600
-      '#a855f7', // Purple
-      '#f43f5e', // Rose
+      '#ff6b6b', // Red
+      '#ff8c42', // Orange
+      '#f9c74f', // Amber
+      '#90be6d', // Green
+      '#43aa8b', // Cyan
+      '#4d908e', // Blue
+      '#577590', // Indigo
+      '#9B5DE5', // Violet
+      '#f15bb5', // Pink
+      '#fee440', // Gray
+      '#00BBF9', // Teal
+      '#00F5D4', // Lime
+      '#9C89B8', // Yellow
+      '#EF476F', // Orange-600
+      '#FFD166', // Purple
+      '#06D6A0', // Rose
     ]
     const itemToDelete = ref(null)
     const folderToRename = ref(null)
@@ -630,6 +694,7 @@ export default {
     const draggedItem = ref(null)
     const dragSource = ref(null) // 'personal' or 'public'
     const dragOverFolderId = ref(null)
+    const dragOverBreadcrumb = ref(null)
     
     // Toast
     const toast = ref('')
@@ -810,8 +875,7 @@ export default {
       
       if (user) {
         currentUser.value = user
-        const userEmail = user.email
-        const userName = user.user_metadata?.display_name || userEmail.split('@')[0]
+        const userDisplayName = user.user_metadata?.display_name || ''
         
         // Check if admin - based on role in metadata
         isAdmin.value = user.user_metadata?.role === 'admin'
@@ -820,14 +884,14 @@ export default {
         const docs = await db.getDocuments(user.id)
         personalDocuments.value = docs.map(d => ({
           ...d,
-          user_email: userName
+          display_name: userDisplayName
         }))
         
         // Load personal folders
         const folders = await db.getFolders(user.id)
         personalFolders.value = folders.map(f => ({
           ...f,
-          user_email: userName,
+          display_name: userDisplayName,
           // Count documents directly in this folder
           count: personalDocuments.value.filter(d => d.folder === f.name).length
         }))
@@ -836,7 +900,7 @@ export default {
         const pubDocs = await db.getPublicDocuments()
         publicDocuments.value = pubDocs.map(d => ({
           ...d,
-          user_email: d.user_email || 'Admin'
+          display_name: d.display_name || 'Anonymous'
         }))
         
         // Load public folders
@@ -943,6 +1007,80 @@ export default {
     const selectPublicFolderColor = (color) => {
       console.log('Selecting public folder color:', color, 'current:', newPublicFolderTagColor.value)
       newPublicFolderTagColor.value = color
+    }
+
+    // Tag Management
+    const openTagManagement = (folder) => {
+      tagManagementFolder.value = folder
+      tagManagementName.value = folder.tag_name || ''
+      tagManagementColor.value = folder.tag_color || '#6b7280'
+      tagManagementIsPublic.value = false
+      showTagManagementModal.value = true
+      folderMenuId.value = null
+    }
+
+    const openPublicTagManagement = (folder) => {
+      tagManagementFolder.value = folder
+      tagManagementName.value = folder.tag_name || ''
+      tagManagementColor.value = folder.tag_color || '#6b7280'
+      tagManagementIsPublic.value = true
+      showTagManagementModal.value = true
+      publicFolderMenuId.value = null
+    }
+
+    const saveTagManagement = async () => {
+      if (!tagManagementFolder.value || !currentUser.value) return
+      
+      try {
+        const tagName = tagManagementName.value.trim() || null
+        const tagColor = tagName ? tagManagementColor.value : null
+        
+        const tableName = tagManagementIsPublic.value ? 'public_folders' : 'folders'
+        const { error: err } = await supabase
+          .from(tableName)
+          .update({
+            tag_name: tagName,
+            tag_color: tagColor,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', tagManagementFolder.value.id)
+
+        if (err) throw err
+        
+        showToast(tagName ? 'Tag updated!' : 'Tag removed!')
+        showTagManagementModal.value = false
+        tagManagementFolder.value = null
+        await loadData()
+      } catch (err) {
+        console.error('Error updating tag:', err)
+        showToast('Failed to update tag', 'error')
+      }
+    }
+
+    const removeTag = async () => {
+      if (!tagManagementFolder.value || !currentUser.value) return
+      
+      try {
+        const tableName = tagManagementIsPublic.value ? 'public_folders' : 'folders'
+        const { error: err } = await supabase
+          .from(tableName)
+          .update({
+            tag_name: null,
+            tag_color: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', tagManagementFolder.value.id)
+
+        if (err) throw err
+        
+        showToast('Tag removed!')
+        showTagManagementModal.value = false
+        tagManagementFolder.value = null
+        await loadData()
+      } catch (err) {
+        console.error('Error removing tag:', err)
+        showToast('Failed to remove tag', 'error')
+      }
     }
 
     const createFolder = async () => {
@@ -1142,6 +1280,100 @@ export default {
       draggedItem.value = null
       dragSource.value = null
       dragOverFolderId.value = null
+      dragOverBreadcrumb.value = null
+    }
+
+    // Move document out of folder
+    const moveDocOutOfFolder = async (doc) => {
+      try {
+        await db.moveDocumentOutOfFolder(doc.id)
+        showToast('Moved out of folder')
+        await loadData()
+      } catch (err) {
+        console.error('Error moving document out of folder:', err)
+        showToast('Failed to move out', 'error')
+      }
+    }
+
+    // Move public document out of folder
+    const movePublicDocOutOfFolder = async (doc) => {
+      try {
+        await db.movePublicDocumentOutOfFolder(doc.id)
+        showToast('Moved out of folder')
+        await loadData()
+      } catch (err) {
+        console.error('Error moving public document out of folder:', err)
+        showToast('Failed to move out', 'error')
+      }
+    }
+
+    // Breadcrumb drag handlers
+    const handleBreadcrumbDragOver = (event, target) => {
+      // Only allow if a document is being dragged and we're inside a folder
+      if (!draggedItem.value) return
+      const isPersonalInsideFolder = dragSource.value === 'personal' && currentFolder.value
+      const isPublicInsideFolder = dragSource.value === 'public' && currentPublicFolder.value
+      if (!isPersonalInsideFolder && !isPublicInsideFolder) return
+      
+      // Don't allow dropping on current folder (no-op)
+      if (target === 'root' || (isPersonalInsideFolder && target !== currentFolder.value) || (isPublicInsideFolder && target !== currentPublicFolder.value)) {
+        event.dataTransfer.dropEffect = 'move'
+        dragOverBreadcrumb.value = target
+      }
+    }
+
+    const handleBreadcrumbDragLeave = () => {
+      dragOverBreadcrumb.value = null
+    }
+
+    const handleDropOnBreadcrumb = async (event, targetFolder) => {
+      event.preventDefault()
+      dragOverBreadcrumb.value = null
+      
+      if (!draggedItem.value) return
+
+      try {
+        // Determine the target folder path
+        let targetPath = null
+        if (targetFolder !== null) {
+          // Build path from breadcrumb parts
+          if (dragSource.value === 'personal') {
+            const parts = currentFolder.value.split('/')
+            const idx = parts.indexOf(targetFolder)
+            targetPath = parts.slice(0, idx + 1).join('/')
+          } else {
+            const parts = currentPublicFolder.value.split('/')
+            const idx = parts.indexOf(targetFolder)
+            targetPath = parts.slice(0, idx + 1).join('/')
+          }
+        }
+
+        // Check if document would actually move (skip if same folder)
+        if (dragSource.value === 'personal' && targetPath === draggedItem.value.folder) return
+        if (dragSource.value === 'public' && targetPath === draggedItem.value.folder) return
+
+        if (dragSource.value === 'personal') {
+          if (targetPath === null) {
+            await db.moveDocumentOutOfFolder(draggedItem.value.id)
+          } else {
+            await db.moveDocumentToFolder(draggedItem.value.id, targetPath)
+          }
+          showToast(targetPath ? `Moved to "${targetFolder}"` : 'Moved to root')
+        } else {
+          if (targetPath === null) {
+            await db.movePublicDocumentOutOfFolder(draggedItem.value.id)
+          } else {
+            await db.movePublicDocumentToFolder(draggedItem.value.id, targetPath)
+          }
+          showToast(targetPath ? `Moved to "${targetFolder}"` : 'Moved to root')
+        }
+        await loadData()
+      } catch (err) {
+        console.error('Error moving item:', err)
+        showToast('Failed to move item', 'error')
+      }
+      
+      handleDragEnd()
     }
 
     const handleDragOver = (event, folder) => {
@@ -1220,16 +1452,25 @@ export default {
       showRenameModal,
       showDeleteModal,
       showPublishConfirmModal,
+      showTagManagementModal,
       docToPublish,
       newFolderName,
+      newFolderTagName,
+      newFolderTagColor,
       newPublicFolderName,
+      newPublicFolderTagName,
+      newPublicFolderTagColor,
       renameFolderName,
+      tagManagementFolder,
+      tagManagementName,
+      tagManagementColor,
       itemToDelete,
       colorPalette,
       toast,
       toastType,
       draggedItem,
       dragOverFolderId,
+      dragOverBreadcrumb,
       breadcrumbPath,
       publicBreadcrumbPath,
       currentFoldersInView,
@@ -1267,11 +1508,20 @@ export default {
       confirmDeletePublicDocument,
       renamePublicFolder,
       deletePublicFolder,
+      openTagManagement,
+      openPublicTagManagement,
+      saveTagManagement,
+      removeTag,
       handleDragStart,
       handleDragEnd,
       handleDragOver,
       handleDragLeave,
-      handleDropOnFolder
+      handleDropOnFolder,
+      handleBreadcrumbDragOver,
+      handleBreadcrumbDragLeave,
+      handleDropOnBreadcrumb,
+      moveDocOutOfFolder,
+      movePublicDocOutOfFolder
     }
   }
 }
@@ -1423,6 +1673,14 @@ export default {
   color: #1a1a1a;
   font-weight: 500;
   background: #f0f0f0;
+}
+
+.breadcrumb-item.drag-over {
+  background: #e3f2fd;
+  color: #1976d2;
+  border: 2px dashed #1976d2;
+  border-radius: 6px;
+  padding: 4px 8px;
 }
 
 .breadcrumb-arrow {
@@ -1653,7 +1911,8 @@ export default {
 }
 
 .item-icon-large.folder-icon {
-  color: #5c9fea;
+  color: #c0c0c0;
+  transition: color 0.2s;
 }
 
 .item-icon-large.doc-icon {
@@ -1904,6 +2163,22 @@ export default {
   background: #c82333;
 }
 
+.btn-danger-outline {
+  padding: 10px 20px;
+  background: white;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-danger-outline:hover {
+  background: #fff5f5;
+  border-color: #c82333;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -1968,7 +2243,8 @@ export default {
 .modal-actions {
   display: flex;
   gap: 12px;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
 }
 
 /* Toast */
@@ -2028,7 +2304,7 @@ export default {
 }
 
 .color-circle.active {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 2px white, 0 0 0 4px #1a1a1a;
+  border-color: #ccc;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #ccc;
 }
 </style>

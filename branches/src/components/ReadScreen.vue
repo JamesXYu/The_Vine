@@ -30,7 +30,7 @@
             placeholder="Untitled"
             readonly
           />
-          <span v-if="currentFolderTag" class="folder-tag" :style="{ background: currentFolderTag.color }">
+          <span v-if="currentFolderTag" class="folder-tag" :style="{ color: currentFolderTag.color, borderColor: currentFolderTag.color }">
             {{ currentFolderTag.name }}
           </span>
         </div>
@@ -166,13 +166,18 @@ export default {
           // Fetch folder tag for public folders
           if (doc.folder) {
             try {
+              console.log('Fetching public folder tag for folder:', doc.folder, 'docId:', docId)
               const { data: folder } = await supabase
                 .from('public_folders')
                 .select('tag_name, tag_color')
                 .eq('name', doc.folder)
                 .maybeSingle()
-              if (folder && folder.tag_name) {
-                folderTag = { name: folder.tag_name, color: folder.tag_color || '#6c757d' }
+              console.log('Public folder query result:', folder)
+              if (folder && folder.tag_name && folder.tag_name.trim() !== '') {
+                folderTag = { name: folder.tag_name.trim(), color: folder.tag_color || '#6c757d' }
+                console.log('Folder tag set:', folderTag)
+              } else {
+                console.log('No folder tag found (folder missing, tag_name null, or empty):', folder)
               }
             } catch (err) {
               console.error('Error fetching public folder tag for document:', docId, err)
@@ -185,13 +190,18 @@ export default {
           // Fetch folder tag for personal folders
           if (doc && doc.folder) {
             try {
+              console.log('Fetching personal folder tag for folder:', doc.folder, 'docId:', docId)
               const { data: folder } = await supabase
                 .from('folders')
                 .select('tag_name, tag_color')
                 .eq('name', doc.folder)
                 .maybeSingle()
-              if (folder && folder.tag_name) {
-                folderTag = { name: folder.tag_name, color: folder.tag_color || '#6c757d' }
+              console.log('Personal folder query result:', folder)
+              if (folder && folder.tag_name && folder.tag_name.trim() !== '') {
+                folderTag = { name: folder.tag_name.trim(), color: folder.tag_color || '#6c757d' }
+                console.log('Folder tag set:', folderTag)
+              } else {
+                console.log('No folder tag found (folder missing, tag_name null, or empty):', folder)
               }
             } catch (err) {
               console.error('Error fetching personal folder tag for document:', docId, err)
@@ -372,9 +382,11 @@ export default {
   padding: 4px 10px;
   border-radius: 6px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 900;
   color: white;
   white-space: nowrap;
+  background: white;
+  border: 3.5px solid;
 }
 
 .doc-title {

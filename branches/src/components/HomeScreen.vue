@@ -21,13 +21,13 @@
           <div class="card-badge">Public</div>
           <div class="card-title-row">
             <h3 class="card-title">{{ doc.title }}</h3>
-            <span v-if="doc.folder_tag" class="folder-tag" :style="{ background: doc.folder_tag.color }">
+            <span v-if="doc.folder_tag" class="folder-tag" :style="{ color: doc.folder_tag.color, borderColor: doc.folder_tag.color }">
               {{ doc.folder_tag.name }}
             </span>
           </div>
           <p class="card-preview">{{ getPreview(doc.content) }}</p>
           <div class="card-meta">
-            <span class="card-author">{{ doc.user_email || 'Anonymous' }}</span>
+            <span class="card-author">{{ doc.display_name || 'Anonymous' }}</span>
             <span class="card-date">{{ formatDate(doc.published_at || doc.created_at) }}</span>
           </div>
         </div>
@@ -51,7 +51,7 @@
           <h3 class="card-title">{{ mostSavedDoc.title }}</h3>
           <p class="card-preview">{{ getPreview(mostSavedDoc.content) }}</p>
           <div class="card-meta">
-            <span class="card-author">{{ mostSavedDoc.user_email || 'Anonymous' }}</span>
+            <span class="card-author">{{ mostSavedDoc.display_name || 'Anonymous' }}</span>
             <span class="card-date">{{ formatDate(mostSavedDoc.published_at || mostSavedDoc.created_at) }}</span>
           </div>
         </div>
@@ -141,7 +141,7 @@ export default {
         const { data: { user } } = await supabase.auth.getUser()
         
         if (user) {
-          displayName.value = user.user_metadata?.display_name || user.email?.split('@')[0] || 'there'
+          displayName.value = user.user_metadata?.display_name || 'there'
         }
         
         // Load public documents (recent first)
@@ -513,8 +513,10 @@ export default {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 900;
   color: white;
   white-space: nowrap;
+  background: white;
+  border: 3.5px solid;
 }
 </style>
