@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS folders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
+  tag_name TEXT DEFAULT NULL,
+  tag_color TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT folders_name_length CHECK (char_length(name) >= 1 AND char_length(name) <= 255)
@@ -57,6 +59,8 @@ CREATE TABLE IF NOT EXISTS public_folders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
+  tag_name TEXT DEFAULT NULL,
+  tag_color TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -187,6 +191,37 @@ CREATE TRIGGER update_public_documents_updated_at
   BEFORE UPDATE ON public_documents
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- SAVED DOCUMENTS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS saved_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  document_id UUID NOT NULL,
+  is_public BOOLEAN DEFAULT FALSE,
+  saved_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, document_id)
+);
+
+-- Index for better performance
+CREATE INDEX IF NOT EXISTS idx_saved_documents_user_id ON saved_documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_documents_document_id ON saved_documents(document_id);
+
+-- RLS for saved_documents
+ALTER TABLE saved_documents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own saved documents"
+  ON saved_documents FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can save documents"
+  ON saved_documents FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can unsave their own documents"
+  ON saved_documents FOR DELETE
+  USING (auth.uid() = user_id);
 
 -- =====================================================
 -- STORAGE BUCKET for avatars

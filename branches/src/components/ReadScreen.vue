@@ -23,16 +23,34 @@
     <!-- Document Header -->
     <div v-else class="doc-header">
       <div class="header-left">
-        <input 
-          v-model="docTitle" 
-          class="doc-title" 
-          placeholder="Untitled"
-          readonly
-        />
+        <div class="title-row">
+          <input 
+            v-model="docTitle" 
+            class="doc-title" 
+            placeholder="Untitled"
+            readonly
+          />
+          <span v-if="currentFolderTag" class="folder-tag" :style="{ background: currentFolderTag.color }">
+            {{ currentFolderTag.name }}
+          </span>
+        </div>
       </div>
       <div class="header-right">
         <span class="word-count">{{ wordCount }} words</span>
-        <button v-if="isAdmin" class="edit-btn" @click="editDocument">
+        <button 
+          class="save-btn" 
+          :class="{ saved: isSaved }"
+          @click="toggleSave"
+        >
+          <svg v-if="!isSaved" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+          {{ isSaved ? 'Saved' : 'Save' }}
+        </button>
+        <button v-if="isAdmin || isOwner" class="edit-btn" @click="editDocument">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -90,6 +108,10 @@ export default {
     const currentDocId = ref(null)
     const currentUser = ref(null)
     const isAdmin = ref(false)
+    const isOwner = ref(false)  // Track if current user owns the document
+    const isSaved = ref(false)
+    const isPublicDoc = ref(false)  // Track if document is from public library
+    const currentFolderTag = ref(null)  // Track folder tag for display
     const loading = ref(false)
     const toast = ref('')
     const toastType = ref('success')
@@ -137,17 +159,61 @@ export default {
       try {
         // First try to fetch from public_documents table (for public library docs)
         let doc = await db.getPublicDocument(docId)
+        let folderTag = null
         
-        // If not found, try documents table (for personal library docs)
-        if (!doc) {
+        if (doc) {
+          isPublicDoc.value = true  // Mark as public document
+          // Fetch folder tag for public folders
+          if (doc.folder) {
+            try {
+              const { data: folder } = await supabase
+                .from('public_folders')
+                .select('tag_name, tag_color')
+                .eq('name', doc.folder)
+                .maybeSingle()
+              if (folder && folder.tag_name) {
+                folderTag = { name: folder.tag_name, color: folder.tag_color || '#6c757d' }
+              }
+            } catch (err) {
+              console.error('Error fetching public folder tag for document:', docId, err)
+            }
+          }
+        } else {
+          // If not found, try documents table (for personal library docs)
           doc = await db.getDocument(docId)
+          isPublicDoc.value = false  // Mark as personal document
+          // Fetch folder tag for personal folders
+          if (doc && doc.folder) {
+            try {
+              const { data: folder } = await supabase
+                .from('folders')
+                .select('tag_name, tag_color')
+                .eq('name', doc.folder)
+                .maybeSingle()
+              if (folder && folder.tag_name) {
+                folderTag = { name: folder.tag_name, color: folder.tag_color || '#6c757d' }
+              }
+            } catch (err) {
+              console.error('Error fetching personal folder tag for document:', docId, err)
+            }
+          }
         }
         
         if (doc) {
           currentDocId.value = doc.id
           docTitle.value = doc.title
+          // Store folder tag for display
+          currentFolderTag.value = folderTag
+          // Check if current user is the owner
+          if (currentUser.value) {
+            isOwner.value = doc.user_id === currentUser.value.id
+          }
           // Set content in Tiptap editor
           editor.value?.commands.setContent(doc.content || '<p>No content</p>')
+          // Check if document is saved
+          if (currentUser.value) {
+            isSaved.value = await db.isDocumentSaved(currentUser.value.id, doc.id)
+          }
         } else {
           showToast('Document not found', 'error')
         }
@@ -162,6 +228,26 @@ export default {
     const editDocument = () => {
       if (currentDocId.value) {
         router.push(`/admin?doc=${currentDocId.value}`)
+      }
+    }
+
+    const toggleSave = async () => {
+      if (!currentUser.value || !currentDocId.value) return
+      
+      try {
+        if (isSaved.value) {
+          await db.unsaveDocument(currentUser.value.id, currentDocId.value)
+          isSaved.value = false
+          showToast('Removed from saved')
+        } else {
+          // Pass isPublic flag based on document type
+          await db.saveDocument(currentUser.value.id, currentDocId.value, isPublicDoc.value)
+          isSaved.value = true
+          showToast('Document saved!')
+        }
+      } catch (err) {
+        console.error('Error toggling save:', err)
+        showToast('Failed to save document: ' + (err.message || 'Unknown error'), 'error')
       }
     }
 
@@ -189,9 +275,13 @@ export default {
       loading,
       currentDocId,
       isAdmin,
+      isOwner,
+      isSaved,
+      currentFolderTag,
       toast,
       toastType,
-      editDocument
+      editDocument,
+      toggleSave
     }
   }
 }
@@ -271,6 +361,22 @@ export default {
   flex: 1;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.folder-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+}
+
 .doc-title {
   font-size: 22px;
   font-weight: 600;
@@ -295,6 +401,38 @@ export default {
   padding: 4px 10px;
   background: #f5f5f5;
   border-radius: 6px;
+}
+
+.save-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: white;
+  color: #666;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.save-btn:hover {
+  background: #f8f9fa;
+  border-color: #ccc;
+  color: #1a1a1a;
+}
+
+.save-btn.saved {
+  background: #fff3e0;
+  border-color: #ffb74d;
+  color: #f57c00;
+}
+
+.save-btn.saved:hover {
+  background: #ffe0b2;
+  border-color: #ff9800;
 }
 
 .edit-btn {

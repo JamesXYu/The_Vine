@@ -328,14 +328,16 @@ export function useDatabase() {
   }
 
   /**
-   * Create a new folder
+   * Create a new folder (with optional tag)
    */
-  const createFolder = async (userId, name) => {
+  const createFolder = async (userId, name, tagName = null, tagColor = null) => {
     const { data, error: err } = await supabase
       .from('folders')
       .insert({
         user_id: userId,
         name: name.trim(),
+        tag_name: tagName,
+        tag_color: tagColor,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -350,14 +352,16 @@ export function useDatabase() {
   }
 
   /**
-   * Create a new public folder
+   * Create a new public folder (with optional tag)
    */
-  const createPublicFolder = async (userId, name) => {
+  const createPublicFolder = async (userId, name, tagName = null, tagColor = null) => {
     const { data, error: err } = await supabase
       .from('public_folders')
       .insert({
         user_id: userId,
-        name: name.trim()
+        name: name.trim(),
+        tag_name: tagName,
+        tag_color: tagColor
       })
       .select()
       .single()
@@ -508,6 +512,227 @@ export function useDatabase() {
     }
   }
 
+  // =====================================================
+  // SAVED DOCUMENTS
+  // =====================================================
+
+  /**
+   * Get all saved documents for a user (both personal and public)
+   */
+  const getSavedDocuments = async (userId) => {
+    const { data, error: err } = await supabase
+      .from('saved_documents')
+      .select('*')
+      .eq('user_id', userId)
+      .order('saved_at', { ascending: false })
+
+    if (err) {
+      console.error('Error fetching saved documents:', err)
+      return []
+    }
+
+    if (!data || data.length === 0) return []
+
+    // Separate personal and public document IDs
+    const personalDocIds = data
+      .filter(item => !item.is_public)
+      .map(item => item.document_id)
+    
+    const publicDocIds = data
+      .filter(item => item.is_public)
+      .map(item => item.document_id)
+
+    // Fetch personal documents
+    let personalDocs = []
+    if (personalDocIds.length > 0) {
+      const { data: docs, error: docError } = await supabase
+        .from('documents')
+        .select('*')
+        .in('id', personalDocIds)
+      
+      if (!docError && docs) {
+        personalDocs = docs.map(doc => ({
+          ...doc,
+          is_public: false
+        }))
+      }
+    }
+
+    // Fetch public documents
+    let publicDocs = []
+    if (publicDocIds.length > 0) {
+      const { data: docs, error: docError } = await supabase
+        .from('public_documents')
+        .select('*')
+        .in('id', publicDocIds)
+      
+      if (!docError && docs) {
+        publicDocs = docs.map(doc => ({
+          ...doc,
+          is_public: true
+        }))
+      }
+    }
+
+    // Merge and add saved metadata
+    const savedMap = {}
+    data.forEach(item => {
+      savedMap[item.document_id] = {
+        saved_id: item.id,
+        saved_at: item.saved_at,
+        is_public: item.is_public
+      }
+    })
+
+    const allDocs = [...personalDocs, ...publicDocs].map(doc => ({
+      ...doc,
+      ...savedMap[doc.id]
+    }))
+
+    return allDocs
+  }
+
+  /**
+   * Save a document (supports both personal and public documents)
+   */
+  const saveDocument = async (userId, docId, isPublic = false) => {
+    try {
+      // Check if already saved
+      const { data: existing, error: checkError } = await supabase
+        .from('saved_documents')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('document_id', docId)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error('Error checking if document is saved:', checkError)
+        throw checkError
+      }
+
+      if (existing) {
+        console.log('Document already saved:', existing)
+        return existing // Already saved
+      }
+
+      // Insert new saved document
+      const { data, error: insertError } = await supabase
+        .from('saved_documents')
+        .insert({
+          user_id: userId,
+          document_id: docId,
+          is_public: isPublic,
+          saved_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Error saving document:', insertError)
+        console.error('Insert payload:', { userId, docId, isPublic })
+        throw insertError
+      }
+      
+      console.log('Document saved successfully:', data)
+      return data
+    } catch (err) {
+      console.error('Failed to save document:', err.message || err)
+      throw err
+    }
+  }
+
+  /**
+   * Unsave a document
+   */
+  const unsaveDocument = async (userId, docId) => {
+    const { error: err } = await supabase
+      .from('saved_documents')
+      .delete()
+      .eq('user_id', userId)
+      .eq('document_id', docId)
+
+    if (err) {
+      console.error('Error unsaving document:', err)
+      throw err
+    }
+  }
+
+  /**
+   * Check if a document is saved
+   */
+  const isDocumentSaved = async (userId, docId) => {
+    const { data } = await supabase
+      .from('saved_documents')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('document_id', docId)
+      .single()
+
+    return !!data
+  }
+
+  /**
+   * Get save count for a document
+   */
+  const getDocumentSaveCount = async (docId) => {
+    const { count, error } = await supabase
+      .from('saved_documents')
+      .select('id', { count: 'exact' })
+      .eq('document_id', docId)
+
+    if (error) {
+      console.error('Error getting save count:', error)
+      return 0
+    }
+    return count || 0
+  }
+
+  /**
+   * Get most saved documents (sorted by save count)
+   */
+  const getMostSavedDocuments = async (limit = 5) => {
+    // Get all saved documents with counts
+    const { data, error } = await supabase
+      .from('saved_documents')
+      .select('document_id')
+
+    if (error) {
+      console.error('Error getting most saved:', error)
+      return []
+    }
+
+    // Count saves per document
+    const counts = {}
+    data.forEach(item => {
+      counts[item.document_id] = (counts[item.document_id] || 0) + 1
+    })
+
+    // Sort by count and get top documents
+    const sortedIds = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([id]) => id)
+
+    // Fetch full document data
+    if (sortedIds.length === 0) return []
+
+    const { data: docs, error: docError } = await supabase
+      .from('documents')
+      .select('*')
+      .in('id', sortedIds)
+
+    if (docError) {
+      console.error('Error fetching most saved docs:', docError)
+      return []
+    }
+
+    // Merge with save counts and sort
+    return (docs || []).map(doc => ({
+      ...doc,
+      save_count: counts[doc.id] || 0
+    })).sort((a, b) => b.save_count - a.save_count)
+  }
+
   return {
     loading,
     error,
@@ -536,6 +761,13 @@ export function useDatabase() {
     renameFolderWithDocuments,
     deleteFolder,
     deletePublicFolder,
+    // Saved Documents
+    getSavedDocuments,
+    saveDocument,
+    unsaveDocument,
+    isDocumentSaved,
+    getDocumentSaveCount,
+    getMostSavedDocuments,
     // Real-time
     subscribeToDocuments,
     subscribeToFolders
