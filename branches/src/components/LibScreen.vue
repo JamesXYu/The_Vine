@@ -178,9 +178,9 @@
               </svg>
             </button>
             <div v-if="folderMenuId === folder.id" class="item-dropdown">
-              <button @click="openTagManagement(folder)">Tag</button>
-              <button @click="renameFolder(folder)">Rename</button>
-              <button @click="confirmDeleteFolder(folder)">Delete</button>
+              <button @click.stop="openTagManagement(folder)">Tag</button>
+              <button @click.stop="renameFolder(folder)">Rename</button>
+              <button @click.stop="confirmDeleteFolder(folder)">Delete</button>
             </div>
           </div>
         </div>
@@ -353,9 +353,9 @@
               </svg>
             </button>
             <div v-if="publicFolderMenuId === folder.id" class="item-dropdown">
-              <button @click="openPublicTagManagement(folder)">Tag</button>
-              <button @click="renamePublicFolder(folder)">Rename</button>
-              <button @click="deletePublicFolder(folder)">Delete</button>
+              <button @click.stop="openPublicTagManagement(folder)">Tag</button>
+              <button @click.stop="renamePublicFolder(folder)">Rename</button>
+              <button @click.stop="deletePublicFolder(folder)">Delete</button>
             </div>
           </div>
         </div>
@@ -593,7 +593,7 @@
         <h3>Confirm Delete</h3>
         <p class="modal-warning">
           Are you sure you want to delete "{{ itemToDelete?.title || itemToDelete?.name }}"?
-          {{ itemToDelete?.type === 'folder' ? 'All documents inside will be moved to root.' : '' }}
+          {{ itemToDelete?.type === 'folder' || itemToDelete?.type === 'public_folder' ? 'All documents inside will be moved to root.' : '' }}
           This action cannot be undone.
         </p>
         <div class="modal-actions">
@@ -831,8 +831,8 @@ export default {
           // When viewing a specific folder, show documents in that folder
           return doc.folder === currentPublicFolder.value
         }
-        // When viewing root, show all documents (including those with folders)
-        return true
+        // When viewing root, only show documents that are not in any folder
+        return !doc.folder
       })
       
       if (searchQuery.value) {
@@ -1182,7 +1182,26 @@ export default {
             currentUser.value.id
           )
           showToast('Folder deleted')
-          currentFolder.value = null
+          // Navigate back to root if we're inside the deleted folder
+          if (currentFolder.value === itemToDelete.value.name) {
+            currentFolder.value = null
+          }
+        } else if (itemToDelete.value.type === 'public_folder') {
+          // Move all documents in this folder back to root, then delete the folder
+          console.log('Deleting public folder:', itemToDelete.value)
+          const docsInFolder = publicDocuments.value.filter(d => d.folder === itemToDelete.value.name)
+          console.log('Docs in folder:', docsInFolder)
+          for (const doc of docsInFolder) {
+            await db.movePublicDocumentToFolder(doc.id, null)
+          }
+          // Actually delete the folder record
+          console.log('Deleting folder record with id:', itemToDelete.value.id)
+          await db.deletePublicFolder(itemToDelete.value.id)
+          showToast('Folder deleted (documents moved to root)')
+          // Navigate back to root if we're inside the deleted folder
+          if (currentPublicFolder.value === itemToDelete.value.name) {
+            currentPublicFolder.value = null
+          }
         }
         
         showDeleteModal.value = false
@@ -1248,19 +1267,9 @@ export default {
       publicFolderMenuId.value = null
     }
 
-    const deletePublicFolder = async (folder) => {
-      // Move all documents in this folder back to root
-      try {
-        const docsInFolder = publicDocuments.value.filter(d => d.folder === folder.name)
-        for (const doc of docsInFolder) {
-          await db.movePublicDocumentToFolder(doc.id, null)
-        }
-        showToast('Folder deleted (documents moved to root)')
-        await loadData()
-      } catch (err) {
-        console.error('Delete folder error:', err)
-        showToast('Failed to delete folder', 'error')
-      }
+    const deletePublicFolder = (folder) => {
+      itemToDelete.value = { ...folder, type: 'public_folder' }
+      showDeleteModal.value = true
       publicFolderMenuId.value = null
     }
 
