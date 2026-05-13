@@ -10,26 +10,42 @@
 
     <!-- Main Content Grid (fit to viewport, no scroll) -->
     <div class="main-grid" v-if="recentPublicDocs.length > 0 || mostSavedDocs.length > 0 || !loading">
-      <!-- Announcement Section (Left - Full Height) -->
-      <section class="announcement-section">
-        <h2 class="section-title">Announcement</h2>
-        <div class="announcement-card">
-          <div class="announcement-content">
-            <h3 class="announcement-title">Welcome to The Vine</h3>
-            <p class="announcement-text">
-              This is a placeholder announcement. The admin will be able to post important updates and announcements here.
-            </p>
-            <div class="announcement-meta">
-              <span class="announcement-date">Today</span>
+      <!-- Left Column: Scripture + Announcement -->
+      <div class="left-column">
+        <!-- Scripture of Today Section (30%) -->
+        <section class="scripture-section">
+          <h2 class="section-title">Scripture of Today</h2>
+          <div class="scripture-card">
+            <div class="scripture-content">
+              <p class="scripture-text">
+                "I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing."
+              </p>
+              <div class="scripture-reference">John 15:5</div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <!-- Announcement Section (65%) -->
+        <section class="announcement-section">
+          <h2 class="section-title">Announcement</h2>
+          <div class="announcement-card">
+            <div class="announcement-content">
+              <h3 class="announcement-title">Welcome to The Vine</h3>
+              <p class="announcement-text">
+                This is a placeholder announcement. The admin will be able to post important updates and announcements here.
+              </p>
+              <div class="announcement-meta">
+                <span class="announcement-date">Today</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
 
       <!-- Right Column (spans remaining space) -->
       <div class="right-column">
         <!-- Top Half: Recently Updated -->
-        <section class="section half-section">
+        <section class="section half-section recent-section">
           <h2 class="section-title">Recently Updated</h2>
           <div class="recent-docs">
             <!-- Most Recent (60% width) -->
@@ -186,16 +202,16 @@ export default {
 
     const getPreview = (content) => {
       if (!content) return 'No content available'
-      // Strip HTML tags but preserve line breaks
+      // Strip HTML tags but preserve <br> as newlines
       const text = content
-        .replace(/<br\s*\/?>/gi, '\n')  // Convert <br> to newline
-        .replace(/<\/p>/gi, '\n')        // Convert </p> to newline
-        .replace(/<[^>]*>/g, ' ')        // Strip other HTML tags
-        .replace(/[ \t]+/g, ' ')         // Collapse spaces/tabs (not newlines)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/[ \t]+/g, ' ')
         .trim()
-      // Split by newlines and get first 2 non-empty lines
+      // Split by newlines and get first 3 lines
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
-      return lines.slice(0, 2).join('\n') || 'No content available'
+      return lines.slice(0, 3).join('\n') || 'No content available'
     }
 
     const loadData = async () => {
@@ -331,9 +347,74 @@ export default {
   min-height: 0; /* Allow grid to shrink */
 }
 
-/* Left: Announcement */
-.announcement-section {
+/* Left Column (Scripture + Announcement) */
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   height: 100%;
+}
+
+/* Scripture of Today Section (fixed height) */
+.scripture-section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scripture-card {
+  background: linear-gradient(145deg, rgba(248, 246, 243, 0.8) 0%, rgba(240, 237, 232, 0.8) 100%);
+  border-radius: 20px;
+  padding: 20px;
+  border: 1px solid #e8e0d4;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.scripture-section {
+  background: rgba(139, 115, 85, 0.08);
+  border-radius: 20px;
+  padding: 16px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scripture-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.scripture-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #5a4a3a;
+  font-style: italic;
+  flex: 1;
+  margin-bottom: 10px;
+}
+
+.scripture-reference {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b7355;
+  text-align: right;
+  padding-top: 8px;
+  border-top: 1px solid #e8e0d4;
+}
+
+/* Announcement Section (fills remaining space) */
+.announcement-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: 20px;
+  padding: 16px;
 }
 
 .announcement-card {
@@ -375,7 +456,7 @@ export default {
 }
 
 .announcement-date {
-  font-size: 16px;
+  font-size: 18px;
   color: #999;
 }
 
@@ -394,6 +475,18 @@ export default {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  border-radius: 20px;
+  padding: 16px;
+}
+
+/* Recently Updated Section - soft green */
+.recent-section {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+/* Most Saved Section - soft amber */
+.most-saved-section {
+  background: rgba(245, 158, 11, 0.08);
 }
 
 .section-title {
@@ -473,13 +566,9 @@ export default {
 
 .card-recent-primary .card-preview {
   flex: 1;
-  font-size: 13px;
+  font-size: 17px;
   line-height: 1.6;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 /* Secondary Recent Card (35% width) */
@@ -494,13 +583,9 @@ export default {
 
 .card-recent-secondary .card-preview {
   flex: 1;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 /* Most Saved First Card (35% width) */
@@ -518,13 +603,9 @@ export default {
 
 .card-saved-first .card-preview {
   flex: 1;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 .card-saved-first .card-accent {
@@ -550,13 +631,9 @@ export default {
 
 .card-saved-second .card-preview {
   flex: 1;
-  font-size: 13px;
+  font-size: 17px;
   line-height: 1.6;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 .card-saved-second .card-accent {
@@ -612,7 +689,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 15px;
+  font-size: 17px;
   color: #999;
   margin-top: auto;
 }
@@ -691,6 +768,22 @@ export default {
   .main-grid {
     grid-template-columns: 1fr;
     height: auto;
+  }
+
+  .left-column {
+    gap: 16px;
+  }
+
+  .scripture-section {
+    flex: 0 0 auto;
+  }
+
+  .scripture-card {
+    min-height: 150px;
+  }
+
+  .announcement-section {
+    flex: 0 0 auto;
   }
 
   .announcement-card {

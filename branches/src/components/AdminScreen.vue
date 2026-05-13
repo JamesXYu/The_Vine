@@ -18,7 +18,7 @@
       </div>
       <div class="header-actions">
         <button class="save-exit-btn" @click="handleSaveAndExit" :disabled="isSaving">
-          {{ isSaving ? 'Saving...' : 'Save & Exit' }}
+          {{ isSaving ? 'Saving...' : 'Save' }}
         </button>
         <button class="save-btn" @click="handleSave" :disabled="isSaving">
           Save
@@ -167,6 +167,21 @@
       </button>
     </div>
 
+    <!-- Unsaved Changes Confirmation Modal -->
+    <div v-if="showUnsavedModal" class="modal-overlay" @click.self="cancelNavigation">
+      <div class="modal">
+        <h3>Unsaved Changes</h3>
+        <p class="modal-warning">
+          You have unsaved changes. What would you like to do?
+        </p>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="cancelNavigation">Cancel</button>
+          <button class="btn-danger" @click="discardChanges">Discard</button>
+          <button class="btn-primary" @click="saveAndContinue">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast -->
     <div v-if="toast" class="toast" :class="toastType">
       {{ toast }}
@@ -176,7 +191,7 @@
 
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -204,6 +219,14 @@ export default {
     const toast = ref('')
     const toastType = ref('success')
     const isSaving = ref(false)
+    
+    // Unsaved changes tracking
+    const originalTitle = ref('')
+    const originalContent = ref('')
+    const showUnsavedModal = ref(false)
+    const nextRoute = ref(null)
+    const pendingAction = ref(null)
+    const forceLeave = ref(false)
 
     const editor = useEditor({
       extensions: [
@@ -242,6 +265,24 @@ export default {
       return text.split(/\s+/).filter(word => word.length > 0).length
     })
 
+    const hasMeaningfulContent = () => {
+      if (!editor.value) return false
+      const text = editor.value.getText().trim()
+      return text.length > 0
+    }
+
+    const hasUnsavedChanges = computed(() => {
+      if (!editor.value) return false
+      
+      // Only warn if there's actual content
+      if (!hasMeaningfulContent()) return false
+      
+      const currentContent = editor.value.getHTML()
+      const titleChanged = docTitle.value !== originalTitle.value && docTitle.value.trim() !== '' && docTitle.value.trim() !== 'Untitled'
+      const contentChanged = currentContent !== originalContent.value
+      return titleChanged || contentChanged
+    })
+
     const showToast = (message, type = 'success') => {
       toast.value = message
       toastType.value = type
@@ -263,7 +304,11 @@ export default {
       if (doc) {
         currentDocId.value = doc.id
         docTitle.value = doc.title
-        editor.value?.commands.setContent(doc.content || '<p>Start writing...</p>')
+        originalTitle.value = doc.title
+        const content = doc.content || '<p>Start writing...</p>'
+        editor.value?.commands.setContent(content)
+        // Update originalContent to match what TipTap actually has (TipTap normalizes HTML)
+        originalContent.value = editor.value?.getHTML() || content
       }
     }
 
@@ -304,6 +349,10 @@ export default {
           router.replace(`/admin?doc=${doc.id}`)
           showToast('Saved to library!')
         }
+        
+        // Update original state after successful save
+        originalTitle.value = docTitle.value
+        originalContent.value = content
       } catch (err) {
         console.error('Error saving document:', err)
         showToast('Failed to save', 'error')
@@ -374,6 +423,22 @@ export default {
       editor.value?.destroy()
     })
 
+    // Route guard to check for unsaved changes
+    onBeforeRouteLeave((to) => {
+      if (forceLeave.value) {
+        forceLeave.value = false
+        return true // Force allow navigation
+      }
+      if (hasUnsavedChanges.value && !isSaving.value) {
+        nextRoute.value = to.path + (to.query.doc ? '?doc=' + to.query.doc : '')
+        pendingAction.value = null
+        showUnsavedModal.value = true
+        return false // Cancel navigation, wait for user choice
+      } else {
+        return true // Allow navigation
+      }
+    })
+
     const goBack = () => {
       if (currentDocId.value) {
         router.push(`/read?doc=${currentDocId.value}`)
@@ -389,6 +454,56 @@ export default {
       }
     }
 
+    // Unsaved changes handlers
+    const handleGoBack = () => {
+      if (hasUnsavedChanges.value && !isSaving.value) {
+        nextRoute.value = 'back'
+        pendingAction.value = null
+        showUnsavedModal.value = true
+      } else {
+        goBack()
+      }
+    }
+
+    const cancelNavigation = () => {
+      showUnsavedModal.value = false
+      nextRoute.value = null
+      pendingAction.value = null
+    }
+
+    const discardChanges = () => {
+      showUnsavedModal.value = false
+      forceLeave.value = true
+      if (nextRoute.value === 'back') {
+        goBack()
+      } else if (nextRoute.value) {
+        router.push(nextRoute.value)
+      } else if (pendingAction.value) {
+        pendingAction.value()
+      }
+      nextRoute.value = null
+      pendingAction.value = null
+    }
+
+    const saveAndContinue = async () => {
+      await handleSave()
+      // Update original content/title to match saved state
+      originalTitle.value = docTitle.value
+      originalContent.value = editor.value?.getHTML() || ''
+      showUnsavedModal.value = false
+      if (nextRoute.value === 'back') {
+        goBack()
+      } else if (nextRoute.value) {
+        router.push(nextRoute.value)
+      } else if (pendingAction.value) {
+        await pendingAction.value()
+      }
+      nextRoute.value = null
+      pendingAction.value = null
+    }
+
+    // Note: beforeunload warning removed to prevent browser's native leave warning
+
     return {
       docTitle,
       showToolbar,
@@ -397,9 +512,14 @@ export default {
       handleSave,
       handleSaveAndExit,
       handlePublish,
-      goBack,
+      goBack: handleGoBack,
       toast,
-      toastType
+      toastType,
+      // Unsaved changes modal
+      showUnsavedModal,
+      cancelNavigation,
+      discardChanges,
+      saveAndContinue
     }
   }
 }
@@ -791,5 +911,98 @@ export default {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 32px;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.modal h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 20px;
+}
+
+.modal-warning {
+  font-size: 14px;
+  color: #6c757d;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-primary, .btn-secondary, .btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  flex: 1;
+  height: 40px;
+}
+
+.btn-primary {
+  background: #1a1a1a;
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: #333;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: white;
+  color: #1a1a1a;
+  border: 1px solid #e9ecef;
+}
+
+.btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #ccc;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: #c82333;
 }
 </style>
