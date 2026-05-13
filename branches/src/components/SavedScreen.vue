@@ -313,14 +313,14 @@ export default {
 
 .folder-tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 6px 12px;
+  background: #f0f0f0;
+  border-radius: 20px;
   font-size: 11px;
-  font-weight: 900;
-  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   white-space: nowrap;
-  background: white;
-  border: 3.5px solid;
 }
 
 .doc-date {

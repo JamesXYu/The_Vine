@@ -66,9 +66,10 @@ export function useDatabase() {
   /**
    * Create a new document
    */
-  const createDocument = async (userId, doc = {}) => {
+  const createDocument = async (userId, userEmail, doc = {}) => {
     const newDoc = {
       user_id: userId,
+      user_email: userEmail,
       title: doc.title || 'Untitled',
       content: doc.content || '',
       folder: doc.folder || null,
@@ -149,6 +150,7 @@ export function useDatabase() {
         title: original.title,
         content: original.content,
         user_id: original.user_id,
+        user_email: user.email,
         display_name: displayName,
         folder: original.folder,
         original_doc_id: original.id,
@@ -198,8 +200,8 @@ export function useDatabase() {
   /**
    * Duplicate a document
    */
-  const duplicateDocument = async (doc, userId) => {
-    return createDocument(userId, {
+  const duplicateDocument = async (doc, userId, userEmail) => {
+    return createDocument(userId, userEmail, {
       title: `${doc.title} (Copy)`,
       content: doc.content,
       folder: doc.folder
@@ -402,11 +404,12 @@ export function useDatabase() {
   /**
    * Create a new folder (with optional tag)
    */
-  const createFolder = async (userId, name, tagName = null, tagColor = null) => {
+  const createFolder = async (userId, userEmail, name, tagName = null, tagColor = null) => {
     const { data, error: err } = await supabase
       .from('folders')
       .insert({
         user_id: userId,
+        user_email: userEmail,
         name: name.trim(),
         tag_name: tagName,
         tag_color: tagColor,
@@ -426,11 +429,12 @@ export function useDatabase() {
   /**
    * Create a new public folder (with optional tag)
    */
-  const createPublicFolder = async (userId, name, tagName = null, tagColor = null) => {
+  const createPublicFolder = async (userId, userEmail, name, tagName = null, tagColor = null) => {
     const { data, error: err } = await supabase
       .from('public_folders')
       .insert({
         user_id: userId,
+        user_email: userEmail,
         name: name.trim(),
         tag_name: tagName,
         tag_color: tagColor
@@ -763,10 +767,25 @@ export function useDatabase() {
    * Get most saved documents (sorted by save count)
    */
   const getMostSavedDocuments = async (limit = 5) => {
-    // Get all saved documents with counts
+    // First, get all public document IDs
+    const { data: publicDocs, error: publicError } = await supabase
+      .from('public_documents')
+      .select('id')
+
+    if (publicError) {
+      console.error('Error fetching public documents:', publicError)
+      return []
+    }
+
+    const publicDocIds = (publicDocs || []).map(doc => doc.id)
+
+    if (publicDocIds.length === 0) return []
+
+    // Get saved documents only for public documents
     const { data, error } = await supabase
       .from('saved_documents')
       .select('document_id')
+      .in('document_id', publicDocIds)
 
     if (error) {
       console.error('Error getting most saved:', error)
@@ -789,7 +808,7 @@ export function useDatabase() {
     if (sortedIds.length === 0) return []
 
     const { data: docs, error: docError } = await supabase
-      .from('documents')
+      .from('public_documents')
       .select('*')
       .in('id', sortedIds)
 

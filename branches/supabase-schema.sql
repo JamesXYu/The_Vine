@@ -12,6 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS folders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  user_email TEXT DEFAULT NULL,
   name TEXT NOT NULL,
   tag_name TEXT DEFAULT NULL,
   tag_color TEXT DEFAULT NULL,
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS folders (
 CREATE TABLE IF NOT EXISTS documents (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  user_email TEXT DEFAULT NULL,
   title TEXT NOT NULL DEFAULT 'Untitled',
   content TEXT DEFAULT '',
   folder TEXT DEFAULT NULL,
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public_documents (
   title TEXT NOT NULL DEFAULT 'Untitled',
   content TEXT DEFAULT '',
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  user_email TEXT DEFAULT NULL,
   display_name TEXT DEFAULT '',
   folder TEXT DEFAULT NULL,
   original_doc_id UUID DEFAULT NULL,
@@ -58,6 +61,7 @@ CREATE TABLE IF NOT EXISTS public_documents (
 CREATE TABLE IF NOT EXISTS public_folders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  user_email TEXT DEFAULT NULL,
   name TEXT NOT NULL,
   tag_name TEXT DEFAULT NULL,
   tag_color TEXT DEFAULT NULL,

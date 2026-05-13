@@ -8,58 +8,132 @@
       </div>
     </header>
 
-    <!-- Recent Public Documents (2 cards side by side) -->
-    <section class="section" v-if="recentPublicDocs.length > 0">
-      <h2 class="section-title">Recently Added</h2>
-      <div class="two-column-grid">
-        <div 
-          v-for="doc in recentPublicDocs.slice(0, 2)" 
-          :key="doc.id" 
-          class="preview-card large"
-          @click="openDocument(doc)"
-        >
-          <div class="card-badge">Public</div>
-          <div class="card-title-row">
-            <h3 class="card-title">{{ doc.title }}</h3>
-            <span v-if="doc.folder_tag" class="folder-tag" :style="{ color: doc.folder_tag.color, borderColor: doc.folder_tag.color }">
-              {{ doc.folder_tag.name }}
-            </span>
-          </div>
-          <p class="card-preview">{{ getPreview(doc.content) }}</p>
-          <div class="card-meta">
-            <span class="card-author">{{ doc.display_name || 'Anonymous' }}</span>
-            <span class="card-date">{{ formatDate(doc.published_at || doc.created_at) }}</span>
+    <!-- Main Content Grid (fit to viewport, no scroll) -->
+    <div class="main-grid" v-if="recentPublicDocs.length > 0 || mostSavedDocs.length > 0 || !loading">
+      <!-- Announcement Section (Left - Full Height) -->
+      <section class="announcement-section">
+        <h2 class="section-title">Announcement</h2>
+        <div class="announcement-card">
+          <div class="announcement-content">
+            <h3 class="announcement-title">Welcome to The Vine</h3>
+            <p class="announcement-text">
+              This is a placeholder announcement. The admin will be able to post important updates and announcements here.
+            </p>
+            <div class="announcement-meta">
+              <span class="announcement-date">Today</span>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Most Saved Document (Featured) -->
-    <section class="section" v-if="mostSavedDoc">
-      <h2 class="section-title">Most Saved by Members</h2>
-      <div class="featured-section">
-        <div 
-          class="preview-card featured"
-          @click="openDocument(mostSavedDoc)"
-        >
-          <div class="card-badge saved-badge">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-            </svg>
-            {{ mostSavedDoc.save_count }} saves
+      <!-- Right Column (spans remaining space) -->
+      <div class="right-column">
+        <!-- Top Half: Recently Updated -->
+        <section class="section half-section">
+          <h2 class="section-title">Recently Updated</h2>
+          <div class="recent-docs">
+            <!-- Most Recent (60% width) -->
+            <div
+              v-if="recentPublicDocs[0]"
+              class="preview-card card-recent-primary"
+              @click="openDocument(recentPublicDocs[0])"
+            >
+              <div class="card-accent"></div>
+              <div v-if="recentPublicDocs[0].folder_tag" class="card-badge" :style="{ color: recentPublicDocs[0].folder_tag.color, borderColor: recentPublicDocs[0].folder_tag.color }">
+                {{ recentPublicDocs[0].folder_tag.name }}
+              </div>
+              <div v-else class="card-badge">Public</div>
+              <h3 class="card-title">{{ recentPublicDocs[0].title }}</h3>
+              <p class="card-preview">{{ getPreview(recentPublicDocs[0].content) }}</p>
+              <div class="card-meta">
+                <span class="card-author">{{ recentPublicDocs[0].display_name || 'Anonymous' }}</span>
+                <span class="card-date">{{ formatDate(recentPublicDocs[0].published_at || recentPublicDocs[0].created_at) }}</span>
+              </div>
+            </div>
+
+            <!-- Second Most Recent (35% width) -->
+            <div
+              v-if="recentPublicDocs[1]"
+              class="preview-card card-recent-secondary"
+              @click="openDocument(recentPublicDocs[1])"
+            >
+              <div class="card-accent"></div>
+              <div v-if="recentPublicDocs[1].folder_tag" class="card-badge" :style="{ color: recentPublicDocs[1].folder_tag.color, borderColor: recentPublicDocs[1].folder_tag.color }">
+                {{ recentPublicDocs[1].folder_tag.name }}
+              </div>
+              <div v-else class="card-badge">Public</div>
+              <h3 class="card-title">{{ recentPublicDocs[1].title }}</h3>
+              <p class="card-preview">{{ getPreview(recentPublicDocs[1].content) }}</p>
+              <div class="card-meta">
+                <span class="card-author">{{ recentPublicDocs[1].display_name || 'Anonymous' }}</span>
+                <span class="card-date">{{ formatDate(recentPublicDocs[1].published_at || recentPublicDocs[1].created_at) }}</span>
+              </div>
+            </div>
           </div>
-          <h3 class="card-title">{{ mostSavedDoc.title }}</h3>
-          <p class="card-preview">{{ getPreview(mostSavedDoc.content) }}</p>
-          <div class="card-meta">
-            <span class="card-author">{{ mostSavedDoc.display_name || 'Anonymous' }}</span>
-            <span class="card-date">{{ formatDate(mostSavedDoc.published_at || mostSavedDoc.created_at) }}</span>
+        </section>
+
+        <!-- Bottom Half: Most Saved (reversed: 35% + 60%) -->
+        <section class="section half-section most-saved-section">
+          <h2 class="section-title">Most Saved</h2>
+          <div class="saved-docs">
+            <!-- First Most Saved (35% width) -->
+            <div
+              v-if="mostSavedDocs[0]"
+              class="preview-card card-saved-first"
+              @click="openDocument(mostSavedDocs[0])"
+            >
+              <div class="card-accent"></div>
+              <div class="card-badge saved-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+                {{ mostSavedDocs[0].save_count }} saves
+              </div>
+              <h3 class="card-title">
+                {{ mostSavedDocs[0].title }}
+                <span v-if="mostSavedDocs[0].folder_tag" class="card-tag-inline" :style="{ color: mostSavedDocs[0].folder_tag.color, borderColor: mostSavedDocs[0].folder_tag.color }">
+                  {{ mostSavedDocs[0].folder_tag.name }}
+                </span>
+              </h3>
+              <p class="card-preview">{{ getPreview(mostSavedDocs[0].content) }}</p>
+              <div class="card-meta">
+                <span class="card-author">{{ mostSavedDocs[0].display_name || 'Anonymous' }}</span>
+                <span class="card-date">{{ formatDate(mostSavedDocs[0].published_at || mostSavedDocs[0].created_at) }}</span>
+              </div>
+            </div>
+
+            <!-- Second Most Saved (60% width) -->
+            <div
+              v-if="mostSavedDocs[1]"
+              class="preview-card card-saved-second"
+              @click="openDocument(mostSavedDocs[1])"
+            >
+              <div class="card-accent"></div>
+              <div class="card-badge saved-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+                {{ mostSavedDocs[1].save_count }} saves
+              </div>
+              <h3 class="card-title">
+                {{ mostSavedDocs[1].title }}
+                <span v-if="mostSavedDocs[1].folder_tag" class="card-tag-inline" :style="{ color: mostSavedDocs[1].folder_tag.color, borderColor: mostSavedDocs[1].folder_tag.color }">
+                  {{ mostSavedDocs[1].folder_tag.name }}
+                </span>
+              </h3>
+              <p class="card-preview">{{ getPreview(mostSavedDocs[1].content) }}</p>
+              <div class="card-meta">
+                <span class="card-author">{{ mostSavedDocs[1].display_name || 'Anonymous' }}</span>
+                <span class="card-date">{{ formatDate(mostSavedDocs[1].published_at || mostSavedDocs[1].created_at) }}</span>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
       </div>
-    </section>
+    </div>
 
     <!-- Empty State for Public Library -->
-    <div v-if="recentPublicDocs.length === 0 && !mostSavedDoc && !loading" class="empty-state">
+    <div v-if="recentPublicDocs.length === 0 && mostSavedDocs.length === 0 && !loading" class="empty-state">
       <div class="empty-icon">
         <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="12" r="10"/>
@@ -77,23 +151,6 @@
       </router-link>
     </div>
 
-    <!-- Quick Navigation -->
-    <section class="section quick-nav" v-if="recentPublicDocs.length > 0 || mostSavedDoc">
-      <div class="quick-nav-grid">
-        <router-link to="/lib" class="quick-nav-card">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
-          <span>Browse All</span>
-        </router-link>
-        <router-link to="/saved" class="quick-nav-card">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-          </svg>
-          <span>My Saved</span>
-        </router-link>
-      </div>
-    </section>
   </div>
 </template>
 
@@ -108,10 +165,10 @@ export default {
   setup() {
     const router = useRouter()
     const db = useDatabase()
-    
+
     const displayName = ref('')
     const recentPublicDocs = ref([])
-    const mostSavedDoc = ref(null)
+    const mostSavedDocs = ref([])
     const loading = ref(false)
 
     const formatDate = (date) => {
@@ -120,7 +177,7 @@ export default {
       const now = new Date()
       const diff = now - d
       const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-      
+
       if (days === 0) return 'today'
       if (days === 1) return 'yesterday'
       if (days < 7) return `${days} days ago`
@@ -129,26 +186,32 @@ export default {
 
     const getPreview = (content) => {
       if (!content) return 'No content available'
-      // Strip HTML tags
-      const text = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-      // Return first 150 characters
-      return text.length > 150 ? text.substring(0, 150) + '...' : text
+      // Strip HTML tags but preserve line breaks
+      const text = content
+        .replace(/<br\s*\/?>/gi, '\n')  // Convert <br> to newline
+        .replace(/<\/p>/gi, '\n')        // Convert </p> to newline
+        .replace(/<[^>]*>/g, ' ')        // Strip other HTML tags
+        .replace(/[ \t]+/g, ' ')         // Collapse spaces/tabs (not newlines)
+        .trim()
+      // Split by newlines and get first 2 non-empty lines
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+      return lines.slice(0, 2).join('\n') || 'No content available'
     }
 
     const loadData = async () => {
       loading.value = true
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        
+
         if (user) {
           displayName.value = user.user_metadata?.display_name || 'there'
         }
-        
+
         // Load public documents (recent first)
         const pubDocs = await db.getPublicDocuments()
-        // Fetch folder tag for each document
+        // Fetch folder tag for each document (up to 3)
         const docsWithTags = await Promise.all(
-          pubDocs.slice(0, 2).map(async (doc) => {
+          pubDocs.slice(0, 3).map(async (doc) => {
             if (doc.folder) {
               try {
                 const { data: folder } = await supabase
@@ -173,12 +236,36 @@ export default {
           })
         )
         recentPublicDocs.value = docsWithTags
-        
-        // Load most saved document
-        const mostSaved = await db.getMostSavedDocuments(1)
-        if (mostSaved.length > 0) {
-          mostSavedDoc.value = mostSaved[0]
-        }
+
+        // Load most saved documents (with folder tags)
+        const mostSaved = await db.getMostSavedDocuments(2)
+        // Fetch folder tag for each most saved document
+        const mostSavedWithTags = await Promise.all(
+          mostSaved.map(async (doc) => {
+            if (doc.folder) {
+              try {
+                const { data: folder } = await supabase
+                  .from('public_folders')
+                  .select('tag_name, tag_color')
+                  .eq('name', doc.folder)
+                  .maybeSingle()
+                if (folder && folder.tag_name) {
+                  return {
+                    ...doc,
+                    folder_tag: {
+                      name: folder.tag_name,
+                      color: folder.tag_color || '#6c757d'
+                    }
+                  }
+                }
+              } catch (err) {
+                console.error('Error fetching folder tag for document:', doc.id, err)
+              }
+            }
+            return doc
+          })
+        )
+        mostSavedDocs.value = mostSavedWithTags
       } catch (err) {
         console.error('Error loading data:', err)
       } finally {
@@ -197,7 +284,7 @@ export default {
     return {
       displayName,
       recentPublicDocs,
-      mostSavedDoc,
+      mostSavedDocs,
       loading,
       formatDate,
       getPreview,
@@ -209,181 +296,325 @@ export default {
 
 <style scoped>
 .home-page {
-  padding: 32px 40px;
-  max-width: 1200px;
-  min-height: 100vh;
-}
-
-/* Header */
-.page-header {
-  margin-bottom: 40px;
-}
-
-.welcome h1 {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 8px;
-}
-
-.subtitle {
-  font-size: 16px;
-  color: #6c757d;
-}
-
-/* Section */
-.section {
-  margin-bottom: 40px;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 16px;
-}
-
-/* Two Column Grid */
-.two-column-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-}
-
-@media (max-width: 768px) {
-  .two-column-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Featured Section */
-.featured-section {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-/* Preview Card */
-.preview-card {
-  position: relative;
-  background: white;
-  border-radius: 20px;
-  padding: 32px;
-  cursor: pointer;
-  transition: all 0.25s ease;
+  padding: 24px 32px;
+  max-width: 1400px;
+  height: 100vh;
   overflow: hidden;
-}
-
-.preview-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.preview-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
-}
-
-.preview-card:hover::before {
-  opacity: 1;
-}
-
-/* Large Card (for 2-column) */
-.preview-card.large {
-  min-height: 220px;
   display: flex;
   flex-direction: column;
 }
 
-.preview-card.large .card-title {
-  font-size: 22px;
+/* Header */
+.page-header {
+  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
-.preview-card.large .card-preview {
+.welcome h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #6c757d;
+}
+
+/* Main Grid Layout (fills remaining height) */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
   flex: 1;
+  min-height: 0; /* Allow grid to shrink */
+}
+
+/* Left: Announcement */
+.announcement-section {
+  height: 100%;
+}
+
+.announcement-card {
+  background: white;
+  border-radius: 20px;
+  padding: 28px;
+  border: 1px solid #f0f0f0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.announcement-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.announcement-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 14px;
+}
+
+.announcement-text {
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.8;
+  color: #666;
+  flex: 1;
+  overflow: auto;
 }
 
-/* Featured Card */
-.preview-card.featured {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 200px;
+.announcement-meta {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #f0f0f0;
 }
 
-.preview-card.featured::before {
-  display: none;
+.announcement-date {
+  font-size: 16px;
+  color: #999;
 }
 
-.preview-card.featured .card-title,
-.preview-card.featured .card-preview,
-.preview-card.featured .card-meta {
-  color: white;
+/* Right Column (spans remaining space) */
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
 }
 
-.preview-card.featured .card-meta {
-  opacity: 0.9;
+/* Half Sections (top and bottom) */
+.half-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+/* Recently Updated Docs Container (60% + 5% gap + 35%) */
+.recent-docs {
+  display: grid;
+  grid-template-columns: 60% 35%;
+  gap: 5%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Most Saved Docs Container (35% + 5% gap + 60%) */
+.saved-docs {
+  display: grid;
+  grid-template-columns: 35% 60%;
+  gap: 5%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Preview Card Base (reduced padding) */
+.preview-card {
+  position: relative;
+  background: white;
+  border-radius: 14px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  border: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.card-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #2d2d2d;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.preview-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  border-color: #e0e0e0;
+}
+
+.preview-card:hover .card-accent {
+  transform: scaleX(1);
+}
+
+/* Primary Recent Card (60% width) */
+.card-recent-primary {
+  min-height: 0;
+}
+
+.card-recent-primary .card-title {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.card-recent-primary .card-preview {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Secondary Recent Card (35% width) */
+.card-recent-secondary {
+  min-height: 0;
+}
+
+.card-recent-secondary .card-title {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.card-recent-secondary .card-preview {
+  flex: 1;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Most Saved First Card (35% width) */
+.card-saved-first {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(145deg, #fafafa 0%, #f5f5f5 100%);
+  min-height: 0;
+}
+
+.card-saved-first .card-title {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.card-saved-first .card-preview {
+  flex: 1;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.card-saved-first .card-accent {
+  background: #c9a96e;
+}
+
+.card-saved-first:hover {
+  background: linear-gradient(145deg, #ffffff 0%, #f8f8f8 100%);
+}
+
+/* Most Saved Second Card (60% width) */
+.card-saved-second {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(145deg, #fafafa 0%, #f5f5f5 100%);
+  min-height: 0;
+}
+
+.card-saved-second .card-title {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.card-saved-second .card-preview {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.card-saved-second .card-accent {
+  background: #c9a96e;
+}
+
+.card-saved-second:hover {
+  background: linear-gradient(145deg, #ffffff 0%, #f8f8f8 100%);
 }
 
 /* Card Badge */
 .card-badge {
   position: absolute;
-  top: 20px;
-  right: 20px;
-  padding: 6px 12px;
+  top: 14px;
+  right: 14px;
+  padding: 4px 8px;
   background: #f0f0f0;
-  border-radius: 20px;
-  font-size: 11px;
+  border-radius: 16px;
+  font-size: 9px;
   font-weight: 600;
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  border: 1px solid transparent;
 }
 
 .saved-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
-.preview-card.featured .card-badge {
-  background: rgba(255, 255, 255, 0.25);
-  color: white;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #555;
 }
 
 /* Card Content */
 .card-title {
-  font-size: 18px;
   font-weight: 700;
   color: #1a1a1a;
-  margin-bottom: 12px;
   line-height: 1.3;
-  padding-right: 80px;
+  padding-right: 70px;
+  margin-bottom: 6px;
 }
 
 .card-preview {
-  font-size: 14px;
   color: #666;
+  margin-bottom: 8px;
+  overflow: hidden;
+  white-space: pre-line;
   line-height: 1.6;
-  margin-bottom: 16px;
 }
 
 .card-meta {
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-size: 12px;
+  gap: 10px;
+  font-size: 15px;
   color: #999;
+  margin-top: auto;
 }
 
 .card-author {
@@ -392,6 +623,21 @@ export default {
 
 .card-date {
   opacity: 0.8;
+}
+
+.card-tag-inline {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  background: #f0f0f0;
+  border: 1px solid transparent;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 /* Empty State */
@@ -440,83 +686,38 @@ export default {
   background: #333;
 }
 
-/* Quick Navigation */
-.quick-nav {
-  margin-top: 40px;
+/* Responsive */
+@media (max-width: 1100px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .announcement-card {
+    min-height: 200px;
+  }
+
+  .home-page {
+    height: auto;
+    overflow: auto;
+  }
 }
 
-.quick-nav-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
+@media (max-width: 768px) {
+  .home-page {
+    padding: 16px;
+  }
 
-@media (max-width: 600px) {
-  .quick-nav-grid {
+  .recent-docs {
     grid-template-columns: 1fr;
   }
-}
 
-.quick-nav-card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 20px;
-  background: white;
-  border-radius: 14px;
-  text-decoration: none;
-  color: #1a1a1a;
-  font-weight: 600;
-  font-size: 14px;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.quick-nav-card:hover {
-  background: #f8f9fa;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.quick-nav-card svg {
-  color: #666;
-}
-
-@media (max-width: 600px) {
-  .home-page {
-    padding: 24px 20px;
+  .saved-docs {
+    grid-template-columns: 1fr;
   }
-  
-  .welcome h1 {
-    font-size: 26px;
-  }
-  
+
   .preview-card {
-    padding: 24px;
+    padding: 16px;
   }
-  
-  .card-title {
-    font-size: 18px;
-  }
-}
-
-.card-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.folder-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 900;
-  color: white;
-  white-space: nowrap;
-  background: white;
-  border: 3.5px solid;
 }
 </style>

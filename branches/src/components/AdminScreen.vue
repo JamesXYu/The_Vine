@@ -294,7 +294,7 @@ export default {
           showToast('Saved to library!')
         } else {
           // Create new personal document
-          const doc = await db.createDocument(currentUser.value.id, {
+          const doc = await db.createDocument(currentUser.value.id, currentUser.value.email, {
             title,
             content,
             folder: null
@@ -335,7 +335,7 @@ export default {
           router.replace(`/admin?doc=${publishedDoc.id}`)
         } else {
           // Create and publish
-          const doc = await db.createDocument(currentUser.value.id, {
+          const doc = await db.createDocument(currentUser.value.id, currentUser.value.email, {
             title,
             content,
             folder: null

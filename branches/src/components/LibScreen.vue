@@ -769,7 +769,29 @@ export default {
       
       return docs
     })
-    
+
+    // Helper function to recursively count all documents in a folder and its subfolders
+    const countAllDocumentsInFolder = (folderName, documents, allFolders) => {
+      // Count documents directly in this folder
+      let count = documents.filter(d => d.folder === folderName).length
+      
+      // Find all subfolders (folders whose path starts with "folderName/")
+      const prefix = folderName + '/'
+      const subfolders = allFolders.filter(f => f.name.startsWith(prefix))
+      
+      // Recursively count documents in each subfolder
+      for (const subfolder of subfolders) {
+        // Get the relative path from the parent folder
+        const relativePath = subfolder.name.replace(prefix, '')
+        // Only count if this is a direct child (no nested separator in relative path)
+        if (!relativePath.includes('/')) {
+          count += countAllDocumentsInFolder(subfolder.name, documents, allFolders)
+        }
+      }
+      
+      return count
+    }
+
     const filteredPublicDocuments = computed(() => {
       let docs = [...publicDocuments.value]
       
@@ -804,13 +826,13 @@ export default {
           return {
             ...f,
             displayName: f.name.replace(currentPublicFolder.value + '/', ''),
-            count: publicDocuments.value.filter(d => d.folder === f.name).length
+            count: countAllDocumentsInFolder(f.name, publicDocuments.value, publicFolders.value)
           }
         }
         return { 
           ...f, 
           displayName: f.name,
-          count: publicDocuments.value.filter(d => d.folder === f.name).length
+          count: countAllDocumentsInFolder(f.name, publicDocuments.value, publicFolders.value)
         }
       })
       
@@ -892,8 +914,8 @@ export default {
         personalFolders.value = folders.map(f => ({
           ...f,
           display_name: userDisplayName,
-          // Count documents directly in this folder
-          count: personalDocuments.value.filter(d => d.folder === f.name).length
+          // Count all documents in this folder and subfolders
+          count: countAllDocumentsInFolder(f.name, personalDocuments.value, folders)
         }))
         
         // Load public documents (from new public_documents table)
@@ -907,7 +929,7 @@ export default {
         const pubFolders = await db.getPublicFolders()
         publicFolders.value = pubFolders.map(f => ({
           ...f,
-          count: publicDocuments.value.filter(d => d.folder === f.name).length
+          count: countAllDocumentsInFolder(f.name, publicDocuments.value, pubFolders)
         }))
       }
     }
@@ -924,7 +946,7 @@ export default {
       if (!currentUser.value) return
       
       try {
-        const doc = await db.createDocument(currentUser.value.id, {
+        const doc = await db.createDocument(currentUser.value.id, currentUser.value.email, {
           title: 'Untitled Document',
           content: '<p>Start writing...</p>',
           folder: currentFolder.value
@@ -951,7 +973,7 @@ export default {
       if (!currentUser.value) return
       
       try {
-        await db.duplicateDocument(doc, currentUser.value.id)
+        await db.duplicateDocument(doc, currentUser.value.id, currentUser.value.email)
         showToast('Document duplicated!')
         await loadData()
       } catch (err) {
@@ -1095,7 +1117,7 @@ export default {
         
         console.log('Creating folder with tag:', { tagName, tagColor, newFolderTagColor: newFolderTagColor.value })
         
-        await db.createFolder(currentUser.value.id, folderPath, tagName, tagColor)
+        await db.createFolder(currentUser.value.id, currentUser.value.email, folderPath, tagName, tagColor)
         showToast('Folder created!')
         showNewFolderModal.value = false
         newFolderName.value = ''
@@ -1242,7 +1264,7 @@ export default {
         
         console.log('Creating public folder with tag:', { tagName, tagColor, newPublicFolderTagColor: newPublicFolderTagColor.value })
         
-        await db.createPublicFolder(currentUser.value.id, folderPath, tagName, tagColor)
+        await db.createPublicFolder(currentUser.value.id, currentUser.value.email, folderPath, tagName, tagColor)
         showToast('Folder created!')
         showNewPublicFolderModal.value = false
         newPublicFolderName.value = ''
