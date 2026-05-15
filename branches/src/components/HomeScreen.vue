@@ -456,7 +456,7 @@ export default {
 }
 
 .announcement-date {
-  font-size: 18px;
+  font-size: 13px;
   color: #999;
 }
 
@@ -566,7 +566,7 @@ export default {
 
 .card-recent-primary .card-preview {
   flex: 1;
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.6;
   overflow: hidden;
 }
@@ -631,7 +631,7 @@ export default {
 
 .card-saved-second .card-preview {
   flex: 1;
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.6;
   overflow: hidden;
 }
@@ -696,10 +696,12 @@ export default {
 
 .card-author {
   font-weight: 500;
+  font-size: 13px;
 }
 
 .card-date {
   opacity: 0.8;
+  font-size: 10px;
 }
 
 .card-tag-inline {

@@ -5,6 +5,7 @@ import SavedScreen from '@/components/SavedScreen.vue'
 import AdminScreen from '@/components/AdminScreen.vue'
 import ReadScreen from '@/components/ReadScreen.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
+import NotificationsScreen from '@/components/NotificationsScreen.vue'
 
 const routes = [
   {
@@ -40,6 +41,11 @@ const routes = [
     path: '/settings',
     name: 'settings',
     component: SettingsScreen
+  },
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: NotificationsScreen
   }
 ]
 

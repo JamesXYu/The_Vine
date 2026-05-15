@@ -51,6 +51,17 @@
           </svg>
           Notes
         </router-link>
+        <!-- Notification Link -->
+        <div class="notification-container">
+          <router-link to="/notifications" class="nav-btn notification-btn" :class="{ active: $route.name === 'notifications' }">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            Notifications
+            <span v-if="unreadCount > 0" class="notification-badge"></span>
+          </router-link>
+        </div>
         <router-link to="/settings" class="nav-btn" :class="{ active: $route.name === 'settings' }">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
@@ -83,6 +94,7 @@
 import { ref, computed, onMounted } from 'vue'
 import LoginScreen from './components/LoginScreen.vue'
 import { supabase } from './supabase'
+import { useNotifications } from './composables/useNotifications'
 
 export default {
   name: 'App',
@@ -139,6 +151,9 @@ export default {
       user.value = null
     }
 
+    // Notification System using shared composable
+    const { unreadCount } = useNotifications()
+
     return {
       user,
       loading,
@@ -147,7 +162,9 @@ export default {
       avatarStyle,
       isAdmin,
       handleLogin,
-      handleLogout
+      handleLogout,
+      // Notification system
+      unreadCount
     }
   }
 }
@@ -325,5 +342,132 @@ body {
   height: 100vh;
   width: calc(100% - 240px);
   overflow-y: auto;
+}
+
+/* Notification System */
+.notification-container {
+  position: relative;
+}
+
+.notification-btn {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  width: 8px;
+  height: 8px;
+  background-color: #e74c3c;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.notification-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 360px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e9ecef;
+  z-index: 1000;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+.notification-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.mark-all-read-btn {
+  background: none;
+  border: none;
+  color: #667eea;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.mark-all-read-btn:hover {
+  background-color: rgba(102, 126, 234, 0.1);
+}
+
+.notification-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.notification-item:hover {
+  background-color: #f8f9fa;
+}
+
+.notification-item.unread {
+  background-color: #f8f9fa;
+}
+
+.notification-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c757d;
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.notification-time {
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.notification-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: #6c757d;
+  font-size: 13px;
 }
 </style>
