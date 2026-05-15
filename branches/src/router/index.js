@@ -6,6 +6,7 @@ import AdminScreen from '@/components/AdminScreen.vue'
 import ReadScreen from '@/components/ReadScreen.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import NotificationsScreen from '@/components/NotificationsScreen.vue'
+import CalendarScreen from '@/components/CalendarScreen.vue'
 
 const routes = [
   {
@@ -26,6 +27,11 @@ const routes = [
     path: '/saved',
     name: 'saved',
     component: SavedScreen
+  },
+  {
+    path: '/calendar',
+    name: 'calendar',
+    component: CalendarScreen
   },
   {
     path: '/admin',

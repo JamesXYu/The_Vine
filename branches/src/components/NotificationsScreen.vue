@@ -60,8 +60,7 @@ export default {
           router.push('/home')
           break
         case 'calendar':
-          // Calendar feature not implemented yet, navigate to home
-          router.push('/home')
+          router.push('/calendar')
           break
       }
     }
