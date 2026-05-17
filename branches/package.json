@@ -17,6 +17,7 @@
     "@tiptap/pm": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
     "@tiptap/vue-3": "^3.22.5",
+    "@vuepic/vue-datepicker": "^12.1.0",
     "core-js": "^3.8.3",
     "qalendar": "^3.9.0",
     "vue": "^3.2.13",

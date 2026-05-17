@@ -300,6 +300,16 @@ export default {
         })
         if (updateError) throw updateError
 
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user?.id && user?.email) {
+          await supabase.from('user_profiles').upsert({
+            id: user.id,
+            email: user.email.trim().toLowerCase(),
+            display_name: displayName.value.trim(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' })
+        }
+
         if (avatarFile.value) {
           const fileExt = avatarFile.value.name.split('.').pop()
           const fileName = `${Date.now()}.${fileExt}`

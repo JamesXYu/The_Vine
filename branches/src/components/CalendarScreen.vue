@@ -1,11 +1,11 @@
 <template>
   <div class="calendar-page">
-    <header class="page-header">
-      <div class="header-left">
+    <header class="calendar-topbar">
+      <div class="calendar-topbar__head">
         <h1>Calendar</h1>
         <p class="subtitle">Each calendar groups events by tag — share with collaborators</p>
       </div>
-      <div class="header-actions">
+      <div class="calendar-topbar__actions">
         <button
           type="button"
           class="calendar-action-btn calendar-action-create"
@@ -15,60 +15,173 @@
         </button>
         <button
           type="button"
+          class="calendar-action-btn calendar-action-share"
+          :disabled="!canShareCalendar"
+          @click="openShareCalendarModal"
+        >
+          Share
+        </button>
+        <button
+          type="button"
           class="calendar-action-btn calendar-action-delete"
           :disabled="!canDeleteCalendar"
           @click="openDeleteCalendarModal"
         >
           Delete
         </button>
-        <button class="btn-primary" @click="openNewEvent()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Add event
-        </button>
       </div>
     </header>
 
-    <section class="calendar-tags-bar">
-      <div class="calendar-bar-filters">
-        <button
-          type="button"
-          class="folder-tag"
-          :class="{ active: activeTagId === null }"
-          @click="activeTagId = null"
-        >
-          All calendars
-        </button>
-        <button
-          v-for="tag in tags"
-          :key="tag.id"
-          type="button"
-          class="folder-tag"
-          :class="{ active: activeTagId === tag.id }"
-          :style="{ color: tag.color, borderColor: tag.color }"
-          @click="activeTagId = tag.id"
-        >
-          {{ tag.name }}
-        </button>
+    <div class="calendar-body">
+      <aside class="calendar-sidebar">
+        <section class="calendar-sidebar__tags">
+          <p class="calendar-sidebar__tags-label">Calendars</p>
+          <div class="calendar-tag-list">
+            <button
+              type="button"
+              class="folder-tag"
+              :class="{ active: activeTagId === null }"
+              @click="activeTagId = null"
+              :title="'All calendars'"
+            >
+              {{ truncateTagLabel('All calendars') }}
+            </button>
+            <button
+              v-for="(tag, index) in tags"
+              :key="tag.id"
+              type="button"
+              class="folder-tag calendar-tag"
+              draggable="true"
+              :class="{
+                active: activeTagId === tag.id,
+                'tag-personal': isPersonalTag(tag),
+                'tag-shared': isSharedTag(tag),
+                'tag-dragging': tagDragIndex === index,
+                'tag-drag-over': tagDropIndex === index
+              }"
+              :style="calendarTagStyle(tag)"
+              @click="activeTagId = tag.id"
+              @dragstart="onTagDragStart($event, index)"
+              @dragover.prevent="onTagDragOver($event, index)"
+              @drop.prevent="onTagDrop($event, index)"
+              @dragend="onTagDragEnd"
+            >
+              <span v-if="isSharedTag(tag)" class="tag-shared-icon" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </span>
+              <span class="calendar-tag-label" :title="tag.name">{{ truncateTagLabel(tag.name) }}</span>
+            </button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="calendar-main">
+        <div v-if="loadError" class="error-banner">{{ loadError }}</div>
+
+        <div ref="calendarWrapperRef" class="calendar-wrapper is-light-mode">
+          <Qalendar
+            :events="qalendarEvents"
+            :config="qalendarConfig"
+            :is-loading="loading"
+            @edit-event="onEditEvent"
+            @delete-event="onDeleteEvent"
+            @event-was-dragged="onEventDragged"
+            @event-was-resized="onEventResized"
+            @updated-period="onPeriodUpdated"
+          >
+            <template #weekDayEvent="{ eventData }">
+              <div
+                class="vine-week-event"
+                :style="weekEventBlockStyle(eventData)"
+              >
+                <div class="vine-week-event__title">{{ eventData.title }}</div>
+                <p v-if="showWeekEventTime(eventData)" class="vine-week-event__time">
+                  {{ formatWeekEventTime(eventData) }}
+                </p>
+                <p v-if="showWeekEventCreator(eventData)" class="vine-week-event__creator">
+                  {{ eventData.with }}
+                </p>
+              </div>
+            </template>
+          </Qalendar>
+          <div
+            v-if="dragPreview"
+            class="drag-preview"
+            :style="dragPreview"
+          ></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Share calendar modal -->
+    <div v-if="showShareCalendarModal" class="modal-overlay" @click.self="closeShareCalendarModal">
+      <div class="modal modal-wide share-modal">
+        <h3>Share "{{ activeCalendar?.name }}"</h3>
+        <p class="share-modal-hint">Search and select people to share this calendar with.</p>
+        <div class="form-group">
+          <label>Search users</label>
+          <input
+            v-model="shareSearchQuery"
+            type="search"
+            class="input"
+            placeholder="Search by name or email"
+            autocomplete="off"
+          />
+        </div>
+        <div v-if="shareLoadingUsers" class="share-loading">Loading users…</div>
+        <ul v-else class="share-user-list">
+          <li v-if="!filteredShareUsers.length" class="share-empty">No users found</li>
+          <li
+            v-for="user in filteredShareUsers"
+            :key="user.id"
+            class="share-user-row"
+            :class="{ selected: isShareUserSelected(user), disabled: isShareUserAlreadyMember(user) }"
+            @click="toggleShareUser(user)"
+          >
+            <input
+              type="checkbox"
+              class="share-user-checkbox"
+              :checked="isShareUserSelected(user) || isShareUserAlreadyMember(user)"
+              :disabled="isShareUserAlreadyMember(user)"
+              @click.stop
+              @change="toggleShareUser(user)"
+            />
+            <div class="share-user-info">
+              <span class="share-user-name">{{ user.display_name || user.email }}</span>
+              <span class="share-user-email">{{ user.email }}</span>
+            </div>
+            <span v-if="isShareUserAlreadyMember(user)" class="share-user-badge">Shared</span>
+          </li>
+        </ul>
+        <div v-if="shareCalendarMembers.length" class="share-current">
+          <p class="share-current-label">Currently shared with</p>
+          <div class="share-current-chips">
+            <span
+              v-for="member in shareCalendarMembers"
+              :key="member.id"
+              class="share-chip"
+            >
+              {{ memberLabel(member) }}
+            </span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" @click="closeShareCalendarModal">Cancel</button>
+          <button
+            type="button"
+            class="btn-primary"
+            :disabled="saving || !shareSelectedEmails.length"
+            @click="performShareCalendar"
+          >
+            {{ saving ? 'Sharing…' : `Share (${shareSelectedEmails.length})` }}
+          </button>
+        </div>
       </div>
-    </section>
-
-    <div v-if="loadError" class="error-banner">{{ loadError }}</div>
-
-    <div class="calendar-wrapper is-light-mode">
-      <Qalendar
-        :events="qalendarEvents"
-        :config="qalendarConfig"
-        :is-loading="loading"
-        @edit-event="onEditEvent"
-        @delete-event="onDeleteEvent"
-        @event-was-dragged="onEventDragged"
-        @event-was-resized="onEventResized"
-        @datetime-was-clicked="onDateTimeClicked"
-        @date-was-clicked="onDateClicked"
-      />
     </div>
 
     <!-- Confirm delete calendar (same pattern as Library) -->
@@ -147,7 +260,7 @@
 
     <!-- Event modal -->
     <div v-if="showEventModal" class="modal-overlay" @click.self="closeEventModal">
-      <div class="modal" :class="{ 'modal-wide': showShareSection }">
+      <div class="modal event-modal">
         <h3>{{ editingEventId ? 'Edit event' : 'New event' }}</h3>
 
         <form @submit.prevent="saveEvent">
@@ -163,181 +276,107 @@
             />
           </div>
 
-          <div class="form-group" v-if="!editingEventId">
+          <div class="form-group">
             <label>Calendar</label>
-            <div class="calendar-mode-tabs">
+            <div v-if="tags.length" class="event-tag-picker">
               <button
+                v-for="tag in tags"
+                :key="tag.id"
                 type="button"
-                class="mode-tab"
-                :class="{ active: calendarMode === 'existing' }"
-                @click="calendarMode = 'existing'"
+                class="folder-tag"
+                :class="{ active: eventForm.tagId === tag.id }"
+                :style="eventTagStyle(tag)"
+                @click="eventForm.tagId = tag.id"
               >
-                Existing
-              </button>
-              <button
-                type="button"
-                class="mode-tab"
-                :class="{ active: calendarMode === 'new' }"
-                @click="calendarMode = 'new'"
-              >
-                New calendar
-              </button>
-            </div>
-          </div>
-
-          <div v-if="calendarMode === 'existing' || editingEventId" class="form-group">
-            <label>{{ editingEventId ? 'Calendar' : 'Choose calendar' }}</label>
-            <select v-model="eventForm.tagId" class="input" required>
-              <option v-for="tag in tags" :key="tag.id" :value="tag.id">
                 {{ tag.name }}
-              </option>
-            </select>
+              </button>
+            </div>
+            <p v-else class="field-hint">Create a calendar with the Create button above.</p>
           </div>
 
-          <template v-if="calendarMode === 'new' && !editingEventId">
-            <div class="form-group">
-              <label>Calendar name</label>
-              <input
-                v-model="newCalendarName"
-                type="text"
-                class="input"
-                placeholder=""
-                required
-                maxlength="100"
-              />
+          <div class="form-group time-section">
+            <div class="time-section-header">
+              <label>{{ eventForm.allDay ? 'Date' : 'Time' }}</label>
+              <label class="toggle-label compact">
+                <span class="toggle-track">
+                  <input
+                    type="checkbox"
+                    class="toggle-checkbox"
+                    :checked="eventForm.allDay"
+                    @change="setEventAllDay($event.target.checked)"
+                  />
+                  <span class="toggle-switch" aria-hidden="true"></span>
+                </span>
+                <span class="toggle-text">All day</span>
+              </label>
             </div>
-            <div class="form-group">
-              <label>Tag color</label>
-              <div class="color-palette">
-                <button
-                  v-for="color in colorPalette"
-                  :key="color"
-                  type="button"
-                  class="color-circle"
-                  :class="{ active: newCalendarColor === color }"
-                  :style="{ background: color }"
-                  @click.prevent="newCalendarColor = color"
-                  :title="color"
-                >
-                  <svg
-                    v-if="newCalendarColor === color"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="white"
-                    stroke-width="3"
-                  >
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                </button>
+            <template v-if="eventForm.allDay">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="sub-label">Start date</label>
+                  <VueDatePicker
+                    v-model="eventForm.startDate"
+                    v-bind="datePickerBind"
+                    class="event-date-picker"
+                    placeholder="Start date"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="sub-label">End date</label>
+                  <VueDatePicker
+                    v-model="eventForm.endDate"
+                    v-bind="datePickerBind"
+                    class="event-date-picker"
+                    placeholder="End date"
+                  />
+                </div>
               </div>
-            </div>
-          </template>
-
-          <div class="form-group toggle-row">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="eventForm.allDay" class="toggle-checkbox" />
-              <span class="toggle-switch"></span>
-              <span>All day event</span>
-            </label>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Start</label>
-              <input
-                v-model="eventForm.start"
-                :type="eventForm.allDay ? 'date' : 'datetime-local'"
-                class="input"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label>End</label>
-              <input
-                v-model="eventForm.end"
-                :type="eventForm.allDay ? 'date' : 'datetime-local'"
-                class="input"
-                required
-              />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Location <span class="optional">(optional)</span></label>
-            <input
-              v-model="eventForm.location"
-              type="text"
-              class="input"
-              placeholder="Add a location"
-            />
+            </template>
+            <template v-else>
+              <div class="form-group">
+                <label class="sub-label">Date</label>
+                <VueDatePicker
+                  v-model="eventForm.eventDate"
+                  v-bind="datePickerBind"
+                  class="event-date-picker"
+                  placeholder="Select date"
+                />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="sub-label">Start</label>
+                  <VueDatePicker
+                    v-model="eventStartTime"
+                    v-bind="timePickerBind"
+                    time-picker
+                    :time-config="timePickerConfig"
+                    class="event-date-picker event-time-picker"
+                    placeholder="Start time"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="sub-label">End</label>
+                  <VueDatePicker
+                    v-model="eventEndTime"
+                    v-bind="timePickerBind"
+                    time-picker
+                    :time-config="timePickerConfig"
+                    class="event-date-picker event-time-picker"
+                    placeholder="End time"
+                  />
+                </div>
+              </div>
+            </template>
           </div>
 
           <div class="form-group">
-            <label>Description <span class="optional">(optional)</span></label>
+            <label>Note</label>
             <textarea
               v-model="eventForm.description"
               class="input textarea"
               rows="3"
-              placeholder="Add details about this event"
+              placeholder="Add a note"
             ></textarea>
-          </div>
-
-          <div
-            v-if="selectedCalendar && selectedCalendar.owner_id === userId"
-            class="share-section"
-          >
-            <button
-              type="button"
-              class="share-toggle"
-              @click="showShareSection = !showShareSection"
-            >
-              <span>Share calendar</span>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                :class="{ rotated: showShareSection }"
-              >
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-            <div v-if="showShareSection" class="share-panel">
-              <p class="share-hint">Invite others to view or edit events on “{{ selectedCalendar.name }}”.</p>
-              <div class="invite-row">
-                <input
-                  v-model="inviteEmail"
-                  type="email"
-                  class="input"
-                  placeholder="member@email.com"
-                />
-                <select v-model="inviteRole" class="input input-compact">
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-                <button type="button" class="btn-primary btn-sm" :disabled="saving" @click="inviteCollaborator">
-                  Invite
-                </button>
-              </div>
-              <ul v-if="members.length" class="member-list">
-                <li v-for="m in members" :key="m.id">
-                  <span>{{ m.user_email }}</span>
-                  <span class="role-badge">{{ m.role }}</span>
-                  <button
-                    v-if="m.role !== 'owner'"
-                    type="button"
-                    class="btn-text-danger"
-                    @click="removeCollaborator(m.id)"
-                  >
-                    Remove
-                  </button>
-                </li>
-              </ul>
-            </div>
           </div>
 
           <div class="modal-actions">
@@ -352,8 +391,8 @@
             <div v-else></div>
             <div class="modal-actions-right">
               <button type="button" class="btn-secondary" @click="closeEventModal">Cancel</button>
-              <button type="submit" class="btn-primary" :disabled="saving">
-                {{ saving ? 'Saving…' : 'Save event' }}
+              <button type="submit" class="btn-primary" :disabled="saving || !eventForm.tagId">
+                {{ saving ? 'Saving…' : 'Save' }}
               </button>
             </div>
           </div>
@@ -364,26 +403,166 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Qalendar } from 'qalendar'
 import 'qalendar/dist/style.css'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
 import { supabase } from '../supabase'
 import { useCalendarEvents, snapTo15Minutes } from '../composables/useCalendarEvents'
+import { useCalendarDragCreate, buildWeekPeriod } from '../composables/useCalendarDragCreate'
 
-function toLocalInput(iso, allDay) {
-  const d = new Date(iso)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  if (allDay) return `${y}-${m}-${day}`
-  const h = String(d.getHours()).padStart(2, '0')
-  const min = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day}T${h}:${min}`
+function pad2(n) {
+  return String(n).padStart(2, '0')
 }
 
-function fromLocalInput(value, allDay) {
-  if (allDay) return new Date(value + 'T00:00:00').toISOString()
-  return new Date(value).toISOString()
+function toDateInput(iso) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+function toTimeInput(iso) {
+  const d = new Date(iso)
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+function eventFieldsFromIso(startIso, endIso, allDay) {
+  if (allDay) {
+    return {
+      eventDate: '',
+      startTime: '',
+      endTime: '',
+      startDate: toDateInput(startIso),
+      endDate: toDateInput(endIso)
+    }
+  }
+  return {
+    eventDate: toDateInput(startIso),
+    startTime: toTimeInput(startIso),
+    endTime: toTimeInput(endIso),
+    startDate: '',
+    endDate: ''
+  }
+}
+
+function parseTimeToPicker(timeStr) {
+  if (!timeStr) return { hours: 9, minutes: 0 }
+  const [h, m] = timeStr.split(':').map(Number)
+  return {
+    hours: Number.isFinite(h) ? h : 9,
+    minutes: Number.isFinite(m) ? m : 0
+  }
+}
+
+function formatPickerToTime(val) {
+  if (!val || typeof val !== 'object') return ''
+  return `${pad2(val.hours ?? 0)}:${pad2(val.minutes ?? 0)}`
+}
+
+const datePickerBind = {
+  modelType: 'yyyy-MM-dd',
+  format: 'MMM d, yyyy',
+  autoApply: true,
+  textInput: true,
+  teleport: 'body',
+  timeConfig: { enableTimePicker: false }
+}
+
+const timePickerBind = {
+  autoApply: true,
+  textInput: true,
+  teleport: 'body',
+  config: {
+    modeHeight: 88
+  },
+  actionRow: {
+    showSelect: false,
+    showCancel: false,
+    showPreview: false
+  },
+  ui: {
+    menu: 'event-time-picker-menu'
+  }
+}
+
+const timePickerConfig = {
+  minutesIncrement: 15,
+  minutesGridIncrement: 15,
+  is24: true,
+  noHoursOverlay: true,
+  noMinutesOverlay: true
+}
+
+function eventTimesFromForm(form) {
+  if (form.allDay) {
+    const startDate = form.startDate
+    let endDate = form.endDate || form.startDate
+    if (!startDate) throw new Error('Start date is required')
+    if (endDate < startDate) endDate = startDate
+    return {
+      startAt: new Date(`${startDate}T00:00:00`).toISOString(),
+      endAt: new Date(`${endDate}T23:59:59`).toISOString()
+    }
+  }
+  const { eventDate, startTime, endTime } = form
+  if (!eventDate || !startTime || !endTime) {
+    throw new Error('Date and times are required')
+  }
+  const startAt = new Date(`${eventDate}T${startTime}:00`)
+  let endAt = new Date(`${eventDate}T${endTime}:00`)
+  if (endAt <= startAt) {
+    endAt = new Date(startAt.getTime() + 15 * 60 * 1000)
+  }
+  return {
+    startAt: startAt.toISOString(),
+    endAt: endAt.toISOString()
+  }
+}
+
+function parseWeekEventDateTime(s) {
+  if (!s?.includes(' ')) return null
+  const [date, time] = s.split(' ')
+  return new Date(`${date}T${time}:00`)
+}
+
+function getWeekEventDurationMinutes(eventData) {
+  const startStr = eventData?.originalTime?.start ?? eventData?.time?.start
+  const endStr = eventData?.originalTime?.end ?? eventData?.time?.end
+  const start = parseWeekEventDateTime(startStr)
+  const end = parseWeekEventDateTime(endStr)
+  if (!start || !end) return 30
+  return Math.max(0, (end.getTime() - start.getTime()) / 60000)
+}
+
+function showWeekEventTime(eventData) {
+  return getWeekEventDurationMinutes(eventData) > 30
+}
+
+function showWeekEventCreator(eventData) {
+  return getWeekEventDurationMinutes(eventData) > 15 && Boolean(eventData?.with)
+}
+
+function formatWeekEventTime(eventData) {
+  const start = parseWeekEventDateTime(eventData?.time?.start)
+  const end = parseWeekEventDateTime(eventData?.time?.end)
+  if (!start || !end) return ''
+  const opts = { hour: 'numeric', minute: '2-digit', hour12: true }
+  return `${start.toLocaleTimeString('en-US', opts)} – ${end.toLocaleTimeString('en-US', opts)}`
+}
+
+/** Qalendar emits event id (string) for edit/delete, full object for drag. */
+function resolveQalendarEventId(payload) {
+  if (payload == null) return null
+  if (typeof payload === 'string') return payload
+  return payload.id ?? null
+}
+
+const TAG_LABEL_MAX_CHARS = 13
+
+function truncateTagLabel(name, maxChars = TAG_LABEL_MAX_CHARS) {
+  const text = (name || '').trim()
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars - 1)}…`
 }
 
 const colorPalette = [
@@ -394,7 +573,7 @@ const colorPalette = [
 
 export default {
   name: 'CalendarScreen',
-  components: { Qalendar },
+  components: { Qalendar, VueDatePicker },
   setup() {
     const userId = ref(null)
     const userEmail = ref('')
@@ -405,35 +584,54 @@ export default {
     const showEventModal = ref(false)
     const showCreateCalendarModal = ref(false)
     const showDeleteCalendarModal = ref(false)
-    const showShareSection = ref(false)
+    const showShareCalendarModal = ref(false)
+    const shareSearchQuery = ref('')
+    const shareUsers = ref([])
+    const shareLoadingUsers = ref(false)
+    const shareSelectedUserIds = ref([])
+    const shareCalendarMembers = ref([])
+    const tagDragIndex = ref(null)
+    const tagDropIndex = ref(null)
+    const calendarWrapperRef = ref(null)
+    const calendarPeriod = ref(buildWeekPeriod())
     const editingEventId = ref(null)
-    const calendarMode = ref('existing')
     const newCalendarName = ref('')
     const newCalendarColor = ref('#6b7280')
-    const inviteEmail = ref('')
-    const inviteRole = ref('editor')
 
     const eventForm = ref({
       title: '',
       tagId: '',
       allDay: false,
-      start: '',
-      end: '',
-      location: '',
+      eventDate: '',
+      startTime: '',
+      endTime: '',
+      startDate: '',
+      endDate: '',
       description: ''
+    })
+
+    const eventStartTime = computed({
+      get: () => parseTimeToPicker(eventForm.value.startTime),
+      set: (v) => { eventForm.value.startTime = formatPickerToTime(v) }
+    })
+
+    const eventEndTime = computed({
+      get: () => parseTimeToPicker(eventForm.value.endTime),
+      set: (v) => { eventForm.value.endTime = formatPickerToTime(v) }
     })
 
     const {
       loading,
       tags,
       events,
-      members,
       getTags,
+      upsertUserProfile,
+      searchUsers,
       createTag,
       deleteTag,
+      updateTagOrder,
       getMembers,
-      inviteMember,
-      removeMember,
+      inviteMembers,
       getEvents,
       createEvent,
       updateEvent,
@@ -444,10 +642,6 @@ export default {
       subscribeToEvents
     } = useCalendarEvents()
 
-    const selectedCalendar = computed(() =>
-      tags.value.find(t => t.id === eventForm.value.tagId) || null
-    )
-
     const activeCalendar = computed(() =>
       tags.value.find(t => t.id === activeTagId.value) || null
     )
@@ -456,6 +650,34 @@ export default {
       const cal = activeCalendar.value
       return Boolean(cal && cal.owner_id === userId.value)
     })
+
+    const canShareCalendar = computed(() => Boolean(activeTagId.value))
+
+    const isPersonalTag = (tag) => tag.owner_id === userId.value
+    const isSharedTag = (tag) => tag.owner_id !== userId.value
+
+    const calendarTagStyle = (tag) => {
+      if (isSharedTag(tag)) {
+        return { color: tag.color, borderColor: tag.color }
+      }
+      return { color: tag.color, borderColor: tag.color }
+    }
+
+    const filteredShareUsers = computed(() => shareUsers.value)
+
+    const shareSelectedEmails = computed(() =>
+      shareUsers.value
+        .filter(u => shareSelectedUserIds.value.includes(u.id))
+        .map(u => u.email)
+    )
+
+    const memberEmails = computed(() =>
+      new Set(
+        shareCalendarMembers.value
+          .filter(m => m.role !== 'owner')
+          .map(m => (m.user_email || '').toLowerCase())
+      )
+    )
 
     const calendarDeleteEventCount = computed(() => {
       if (!activeTagId.value) return 0
@@ -474,7 +696,7 @@ export default {
         ? tags.value.filter(t => t.id === activeTagId.value)
         : tags.value
       return {
-        week: { startsOn: 'sunday', nDays: 7 },
+        week: { startsOn: 'sunday', nDays: 7, scrollToHour: 8 },
         defaultMode: 'week',
         locale: 'en-US',
         style: {
@@ -485,6 +707,14 @@ export default {
         showCurrentTime: true
       }
     })
+
+    const weekEventBlockStyle = (eventData) => {
+      const scheme = qalendarConfig.value.style?.colorSchemes?.[eventData?.colorScheme]
+      return {
+        backgroundColor: scheme?.backgroundColor || '#667eea',
+        color: scheme?.color || '#fff'
+      }
+    }
 
     const allTagIds = computed(() => tags.value.map(t => t.id))
 
@@ -504,17 +734,47 @@ export default {
       userEmail.value = user.email || ''
       displayName.value = user.user_metadata?.display_name || user.email?.split('@')[0] || ''
 
+      await upsertUserProfile(
+        user.id,
+        user.email,
+        user.user_metadata?.display_name || user.email?.split('@')[0] || ''
+      )
       await getTags(user.id, user.email)
-      calendarMode.value = tags.value.length ? 'existing' : 'new'
       if (tags.value.length) {
         eventForm.value.tagId = tags.value[0].id
       }
       await refreshEvents()
     }
 
-    watch(() => eventForm.value.tagId, async (tagId) => {
-      if (tagId && showEventModal.value) {
-        await getMembers(tagId)
+    const eventTagStyle = (tag) => ({
+      color: tag.color,
+      borderColor: tag.color
+    })
+
+    const { dragPreview, attach: attachDragCreate, ensureAttach: ensureDragCreate, detach: detachDragCreate } = useCalendarDragCreate({
+      wrapperRef: calendarWrapperRef,
+      getPeriod: () => calendarPeriod.value,
+      onRangeSelected: ({ start, end, allDay }) => {
+        if (!tags.value.length) {
+          loadError.value = 'Create a calendar first, then drag on the grid to add an event.'
+          return
+        }
+        openNewEvent(start, end, allDay)
+      }
+    })
+
+    const onPeriodUpdated = (period) => {
+      if (!period?.start) return
+      calendarPeriod.value = {
+        start: period.start,
+        end: period.end,
+        selectedDate: period.selectedDate ?? period.start
+      }
+    }
+
+    watch(loading, async (isLoading) => {
+      if (!isLoading) {
+        await ensureDragCreate()
       }
     })
 
@@ -522,46 +782,91 @@ export default {
     onMounted(async () => {
       await init()
       unsubscribe = subscribeToEvents(refreshEvents)
+      await ensureDragCreate()
     })
     onUnmounted(() => {
       if (unsubscribe) unsubscribe()
+      detachDragCreate()
     })
 
-    const resetEventForm = (startHint, endHint) => {
-      const now = snapTo15Minutes(new Date())
-      let start = now
-      let endDate = snapTo15Minutes(new Date(now.getTime() + 60 * 60 * 1000))
-      let allDay = false
+    const resetEventForm = (startHint, endHint, allDayHint = false) => {
+      let allDay = allDayHint
+      let fields = {
+        eventDate: '',
+        startTime: '',
+        endTime: '',
+        startDate: '',
+        endDate: ''
+      }
 
       if (startHint) {
-        allDay = !String(startHint).includes(' ')
+        allDay = allDayHint || !String(startHint).includes(' ')
         if (allDay) {
-          start = new Date(startHint + 'T00:00:00')
-          endDate = new Date(startHint + 'T00:00:00')
+          const startDay = String(startHint).slice(0, 10)
+          const endDay = String(endHint || startHint).slice(0, 10)
+          fields = {
+            eventDate: '',
+            startTime: '',
+            endTime: '',
+            startDate: startDay,
+            endDate: endDay
+          }
         } else {
-          start = snapTo15Minutes(new Date(String(startHint).replace(' ', 'T') + ':00'))
+          const [startDay, startTimeRaw] = String(startHint).split(' ')
+          const startTime = (startTimeRaw || '09:00').slice(0, 5)
+          let endTime = startTime
           if (endHint && String(endHint).includes(' ')) {
-            endDate = snapTo15Minutes(new Date(String(endHint).replace(' ', 'T') + ':00'))
+            const [, et] = String(endHint).split(' ')
+            endTime = (et || startTime).slice(0, 5)
           } else {
-            endDate = snapTo15Minutes(new Date(start.getTime() + 60 * 60 * 1000))
+            const [h, m] = startTime.split(':').map(Number)
+            const endMins = (h * 60 + m + 15) % (24 * 60)
+            endTime = `${pad2(Math.floor(endMins / 60))}:${pad2(endMins % 60)}`
+          }
+          fields = {
+            eventDate: startDay,
+            startTime,
+            endTime,
+            startDate: '',
+            endDate: ''
           }
         }
+      } else {
+        const now = snapTo15Minutes(new Date())
+        const end = snapTo15Minutes(new Date(now.getTime() + 15 * 60 * 1000))
+        fields = eventFieldsFromIso(now.toISOString(), end.toISOString(), false)
       }
 
       eventForm.value = {
         title: '',
         tagId: activeTagId.value || tags.value[0]?.id || '',
         allDay,
-        start: toLocalInput(start.toISOString(), allDay),
-        end: toLocalInput(endDate.toISOString(), allDay),
-        location: '',
+        ...fields,
         description: ''
       }
-      calendarMode.value = tags.value.length ? 'existing' : 'new'
-      newCalendarName.value = ''
-      newCalendarColor.value = '#6b7280'
-      inviteEmail.value = ''
-      showShareSection.value = false
+    }
+
+    const setEventAllDay = (allDay) => {
+      const form = { ...eventForm.value }
+      if (form.allDay === allDay) return
+
+      if (allDay) {
+        const date = form.eventDate || form.startDate || toDateInput(new Date().toISOString())
+        form.startDate = date
+        form.endDate = form.endDate || date
+        form.eventDate = ''
+        form.startTime = ''
+        form.endTime = ''
+      } else {
+        const date = form.startDate || form.eventDate || toDateInput(new Date().toISOString())
+        form.eventDate = date
+        form.startTime = form.startTime || '09:00'
+        form.endTime = form.endTime || '10:00'
+        form.startDate = ''
+        form.endDate = ''
+      }
+      form.allDay = allDay
+      eventForm.value = form
     }
 
     const openCreateCalendarModal = () => {
@@ -585,6 +890,11 @@ export default {
         activeTagId.value = tag.id
         eventForm.value.tagId = tag.id
         showCreateCalendarModal.value = false
+        await updateTagOrder(
+          userId.value,
+          userEmail.value,
+          [...tags.value.map(t => t.id)]
+        )
         await refreshEvents()
       } catch (err) {
         loadError.value = err.message || 'Failed to create calendar'
@@ -593,29 +903,29 @@ export default {
       }
     }
 
-    const openNewEvent = (startHint) => {
+    const openNewEvent = (startHint, endHint, allDay = false) => {
+      if (!tags.value.length) {
+        loadError.value = 'Create a calendar first, then drag on the grid to add an event.'
+        return
+      }
       editingEventId.value = null
-      resetEventForm(startHint)
+      resetEventForm(startHint, endHint, allDay)
       showEventModal.value = true
-      if (eventForm.value.tagId) getMembers(eventForm.value.tagId)
     }
 
-    const onEditEvent = (qEvent) => {
-      const db = events.value.find(e => e.id === qEvent.id)
+    const onEditEvent = (payload) => {
+      const eventId = resolveQalendarEventId(payload)
+      const db = events.value.find(e => e.id === eventId)
       if (!db) return
       editingEventId.value = db.id
-      calendarMode.value = 'existing'
       eventForm.value = {
         title: db.title,
         tagId: db.tag_id,
         allDay: db.all_day,
-        start: toLocalInput(db.start_at, db.all_day),
-        end: toLocalInput(db.end_at, db.all_day),
-        location: db.location || '',
+        ...eventFieldsFromIso(db.start_at, db.end_at, db.all_day),
         description: db.description || ''
       }
       showEventModal.value = true
-      getMembers(db.tag_id)
     }
 
     const closeEventModal = () => {
@@ -623,35 +933,23 @@ export default {
       editingEventId.value = null
     }
 
-    const resolveTagId = async () => {
-      if (calendarMode.value === 'new' && !editingEventId.value) {
-        const name = newCalendarName.value.trim()
-        if (!name) throw new Error('Calendar name is required')
-        const tag = await createTag(
-          userId.value,
-          userEmail.value,
-          name,
-          newCalendarColor.value
-        )
-        eventForm.value.tagId = tag.id
-        return tag.id
-      }
-      if (!eventForm.value.tagId) throw new Error('Please select a calendar')
-      return eventForm.value.tagId
-    }
-
     const saveEvent = async () => {
+      if (!eventForm.value.tagId) {
+        loadError.value = 'Please select a calendar'
+        return
+      }
       saving.value = true
       loadError.value = ''
       try {
-        const tagId = await resolveTagId()
+        const tagId = eventForm.value.tagId
+        const { startAt, endAt } = eventTimesFromForm(eventForm.value)
         const payload = {
           tagId,
           title: eventForm.value.title,
           description: eventForm.value.description,
-          location: eventForm.value.location,
-          startAt: fromLocalInput(eventForm.value.start, eventForm.value.allDay),
-          endAt: fromLocalInput(eventForm.value.end, eventForm.value.allDay),
+          location: '',
+          startAt,
+          endAt,
           allDay: eventForm.value.allDay
         }
 
@@ -693,10 +991,11 @@ export default {
       }
     }
 
-    const onDeleteEvent = async (qEvent) => {
-      if (!confirm('Delete this event?')) return
+    const onDeleteEvent = async (payload) => {
+      const eventId = resolveQalendarEventId(payload)
+      if (!eventId || !confirm('Delete this event?')) return
       try {
-        await deleteEvent(qEvent.id)
+        await deleteEvent(eventId)
         await refreshEvents()
       } catch (err) {
         loadError.value = err.message
@@ -704,8 +1003,10 @@ export default {
     }
 
     const onEventDragged = async (qEvent) => {
+      const eventId = resolveQalendarEventId(qEvent)
+      if (!eventId) return
       try {
-        await updateEvent(qEvent.id, fromQalendarDrag(qEvent))
+        await updateEvent(eventId, fromQalendarDrag(qEvent))
         await refreshEvents()
       } catch (err) {
         loadError.value = err.message
@@ -714,11 +1015,121 @@ export default {
     }
 
     const onEventResized = onEventDragged
-    const onDateTimeClicked = (dt) => openNewEvent(dt)
-    const onDateClicked = (date) => openNewEvent(date)
+
     const openDeleteCalendarModal = () => {
       if (!canDeleteCalendar.value) return
       showDeleteCalendarModal.value = true
+    }
+
+    let shareSearchTimer = null
+    const loadShareUsers = async () => {
+      shareLoadingUsers.value = true
+      try {
+        shareUsers.value = await searchUsers(shareSearchQuery.value, userId.value)
+      } catch (err) {
+        loadError.value = err.message || 'Failed to load users'
+      } finally {
+        shareLoadingUsers.value = false
+      }
+    }
+
+    watch(shareSearchQuery, () => {
+      if (!showShareCalendarModal.value) return
+      clearTimeout(shareSearchTimer)
+      shareSearchTimer = setTimeout(loadShareUsers, 250)
+    })
+
+    const isShareUserSelected = (user) => shareSelectedUserIds.value.includes(user.id)
+    const isShareUserAlreadyMember = (user) => memberEmails.value.has(user.email.toLowerCase())
+
+    const toggleShareUser = (user) => {
+      if (isShareUserAlreadyMember(user)) return
+      const ids = shareSelectedUserIds.value
+      if (ids.includes(user.id)) {
+        shareSelectedUserIds.value = ids.filter(id => id !== user.id)
+      } else {
+        shareSelectedUserIds.value = [...ids, user.id]
+      }
+    }
+
+    const memberLabel = (member) => {
+      const email = member.user_email || ''
+      return email.split('@')[0] || email
+    }
+
+    const openShareCalendarModal = async () => {
+      if (!canShareCalendar.value) return
+      if (!activeCalendar.value || activeCalendar.value.owner_id !== userId.value) {
+        loadError.value = 'Only the calendar owner can share it.'
+        return
+      }
+      showShareCalendarModal.value = true
+      shareSearchQuery.value = ''
+      shareSelectedUserIds.value = []
+      loadError.value = ''
+      try {
+        shareCalendarMembers.value = await getMembers(activeTagId.value)
+      } catch (err) {
+        shareCalendarMembers.value = []
+      }
+      await loadShareUsers()
+    }
+
+    const closeShareCalendarModal = () => {
+      showShareCalendarModal.value = false
+      shareSelectedUserIds.value = []
+    }
+
+    const performShareCalendar = async () => {
+      if (!activeTagId.value || !shareSelectedEmails.value.length) return
+      saving.value = true
+      loadError.value = ''
+      try {
+        await inviteMembers(activeTagId.value, shareSelectedEmails.value)
+        shareCalendarMembers.value = await getMembers(activeTagId.value)
+        shareSelectedUserIds.value = []
+        closeShareCalendarModal()
+      } catch (err) {
+        loadError.value = err.message || 'Failed to share calendar'
+      } finally {
+        saving.value = false
+      }
+    }
+
+    const onTagDragStart = (event, index) => {
+      tagDragIndex.value = index
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', String(index))
+    }
+
+    const onTagDragOver = (event, index) => {
+      event.dataTransfer.dropEffect = 'move'
+      tagDropIndex.value = index
+    }
+
+    const onTagDragEnd = () => {
+      tagDragIndex.value = null
+      tagDropIndex.value = null
+    }
+
+    const onTagDrop = async (event, dropIndex) => {
+      const fromIndex = tagDragIndex.value
+      onTagDragEnd()
+      if (fromIndex === null || fromIndex === dropIndex) return
+
+      const reordered = [...tags.value]
+      const [moved] = reordered.splice(fromIndex, 1)
+      reordered.splice(dropIndex, 0, moved)
+
+      try {
+        await updateTagOrder(
+          userId.value,
+          userEmail.value,
+          reordered.map(t => t.id)
+        )
+      } catch (err) {
+        loadError.value = err.message || 'Failed to reorder calendars'
+      }
     }
 
     const performDeleteCalendar = async () => {
@@ -738,56 +1149,51 @@ export default {
       }
     }
 
-    const inviteCollaborator = async () => {
-      const tagId = eventForm.value.tagId
-      if (!tagId || !inviteEmail.value.trim()) return
-      saving.value = true
-      try {
-        await inviteMember(tagId, inviteEmail.value, inviteRole.value)
-        inviteEmail.value = ''
-        await getMembers(tagId)
-      } catch (err) {
-        loadError.value = err.message
-      } finally {
-        saving.value = false
-      }
-    }
-
-    const removeCollaborator = async (memberId) => {
-      try {
-        await removeMember(memberId)
-        if (eventForm.value.tagId) await getMembers(eventForm.value.tagId)
-      } catch (err) {
-        loadError.value = err.message
-      }
-    }
-
     return {
       loading,
       loadError,
       saving,
       tags,
-      members,
       activeTagId,
+      calendarWrapperRef,
+      dragPreview,
       activeCalendar,
       canDeleteCalendar,
+      canShareCalendar,
+      isPersonalTag,
+      isSharedTag,
+      calendarTagStyle,
+      truncateTagLabel,
+      tagDragIndex,
+      tagDropIndex,
+      showShareCalendarModal,
+      shareSearchQuery,
+      shareLoadingUsers,
+      filteredShareUsers,
+      shareCalendarMembers,
+      shareSelectedEmails,
       calendarDeleteEventCount,
       qalendarEvents,
       qalendarConfig,
+      formatWeekEventTime,
+      showWeekEventTime,
+      showWeekEventCreator,
+      weekEventBlockStyle,
       showEventModal,
       showCreateCalendarModal,
       showDeleteCalendarModal,
-      showShareSection,
       editingEventId,
-      calendarMode,
       eventForm,
+      eventStartTime,
+      eventEndTime,
+      datePickerBind,
+      timePickerBind,
+      timePickerConfig,
+      eventTagStyle,
       newCalendarName,
       newCalendarColor,
       colorPalette,
-      inviteEmail,
-      inviteRole,
       userId,
-      selectedCalendar,
       openCreateCalendarModal,
       saveNewCalendar,
       openNewEvent,
@@ -795,15 +1201,24 @@ export default {
       onDeleteEvent,
       onEventDragged,
       onEventResized,
-      onDateTimeClicked,
-      onDateClicked,
+      onPeriodUpdated,
       closeEventModal,
       saveEvent,
+      setEventAllDay,
       confirmDeleteEvent,
       openDeleteCalendarModal,
       performDeleteCalendar,
-      inviteCollaborator,
-      removeCollaborator
+      openShareCalendarModal,
+      closeShareCalendarModal,
+      performShareCalendar,
+      isShareUserSelected,
+      isShareUserAlreadyMember,
+      toggleShareUser,
+      memberLabel,
+      onTagDragStart,
+      onTagDragOver,
+      onTagDragEnd,
+      onTagDrop
     }
   }
 }
@@ -813,20 +1228,32 @@ export default {
 .calendar-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 32px;
-  gap: 20px;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: #f8f9fa;
 }
 
-.page-header {
+.calendar-topbar {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  flex-shrink: 0;
+  justify-content: space-between;
   gap: 16px;
+  flex-shrink: 0;
+  padding: 16px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e9ecef;
 }
 
-.header-actions {
+.calendar-topbar__head h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.calendar-topbar__actions {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -834,16 +1261,101 @@ export default {
   flex-shrink: 0;
 }
 
-.page-header h1 {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 4px;
+.calendar-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.calendar-sidebar {
+  flex-shrink: 0;
+  width: 130px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 8px;
+  background: #fff;
+  border-right: 1px solid #e9ecef;
+  overflow-x: visible;
+  overflow-y: hidden;
+}
+
+.calendar-sidebar__tags {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calendar-sidebar__tags-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #6c757d;
+}
+
+.calendar-tag-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 2px;
+  overflow-x: visible;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.calendar-tag-list .folder-tag {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  max-height: 34px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.calendar-tag-list .folder-tag.active {
+  box-shadow: none;
+  border-width: 2px;
+  padding: 5px 9px;
+}
+
+.calendar-tag-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow: hidden;
 }
 
 .subtitle {
   color: #6c757d;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .btn-primary {
@@ -909,25 +1421,11 @@ export default {
   color: #fff;
 }
 
-.calendar-tags-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.calendar-bar-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
 .calendar-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: auto;
   padding: 10px 18px;
   border-radius: 10px;
   font-size: 13px;
@@ -965,6 +1463,170 @@ export default {
 .calendar-action-delete:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.calendar-action-share {
+  background: #fff;
+  color: #4f46e5;
+  border: 1px solid #4f46e5;
+}
+
+.calendar-action-share:hover:not(:disabled) {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.calendar-action-share:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: grab;
+}
+
+.calendar-tag:active {
+  cursor: grabbing;
+}
+
+.calendar-tag.tag-personal {
+  background: #f0f0f0;
+}
+
+.calendar-tag.tag-shared {
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border-style: dashed;
+  font-style: normal;
+}
+
+.calendar-tag.tag-shared .tag-shared-icon {
+  display: inline-flex;
+  opacity: 0.75;
+}
+
+.calendar-tag.tag-dragging {
+  opacity: 0.45;
+}
+
+.calendar-tag.tag-drag-over {
+  box-shadow: 0 0 0 2px #4f46e5;
+}
+
+.share-modal-hint {
+  font-size: 13px;
+  color: #6c757d;
+  margin: -12px 0 16px;
+}
+
+.share-loading,
+.share-empty {
+  font-size: 13px;
+  color: #6c757d;
+  padding: 12px 0;
+}
+
+.share-user-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+}
+
+.share-user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f3f5;
+  transition: background 0.15s;
+}
+
+.share-user-row:last-child {
+  border-bottom: none;
+}
+
+.share-user-row:hover:not(.disabled) {
+  background: #f8f9fa;
+}
+
+.share-user-row.selected {
+  background: #eef2ff;
+}
+
+.share-user-row.disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.share-user-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: #4f46e5;
+}
+
+.share-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.share-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.share-user-email {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.share-user-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #4f46e5;
+  background: #eef2ff;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.share-current {
+  margin-bottom: 16px;
+}
+
+.share-current-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6c757d;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.share-current-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.share-chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  background: #f1f3f5;
+  border-radius: 999px;
+  color: #495057;
 }
 
 .btn-danger {
@@ -1027,15 +1689,58 @@ export default {
 }
 
 .calendar-wrapper {
+  position: relative;
   flex: 1;
-  min-height: 400px;
-  height: calc(100vh - 200px);
+  min-height: 0;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 12px;
   border: 1px solid #e9ecef;
   overflow: hidden;
-  padding: 12px;
+  padding: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.calendar-wrapper :deep(.vine-week-event) {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1px;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  padding: 3px 5px;
+  border-radius: 4px;
+  overflow: hidden;
+  box-sizing: border-box;
+  line-height: 1.15;
+  cursor: pointer;
+}
+
+.calendar-wrapper :deep(.vine-week-event__title) {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-wrapper :deep(.vine-week-event__time),
+.calendar-wrapper :deep(.vine-week-event__creator) {
+  font-size: 10px;
+  margin: 0;
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drag-preview {
+  position: absolute;
+  background: rgba(26, 26, 26, 0.15);
+  border: 2px solid #1a1a1a;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 50;
 }
 
 .error-banner {
@@ -1129,31 +1834,137 @@ export default {
   margin-bottom: 0;
 }
 
-.calendar-mode-tabs {
+.event-modal {
+  max-width: 480px;
+}
+
+.event-tag-picker {
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: #f8f9fa;
-  border-radius: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.mode-tab {
-  flex: 1;
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
+.field-hint {
   font-size: 13px;
-  font-weight: 500;
   color: #6c757d;
-  cursor: pointer;
-  transition: all 0.15s;
+  margin: 0;
 }
 
-.mode-tab.active {
+.time-section .form-group {
+  margin-bottom: 12px;
+}
+
+.event-date-picker {
+  width: 100%;
+  --dp-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dp-border-radius: 10px;
+  --dp-cell-border-radius: 8px;
+  --dp-primary-color: #1a1a1a;
+  --dp-primary-text-color: #fff;
+  --dp-hover-color: #f1f3f5;
+  --dp-hover-text-color: #1a1a1a;
+}
+
+.event-date-picker :deep(.dp__input_wrap) {
+  width: 100%;
+}
+
+.event-date-picker :deep(.dp__input) {
+  padding: 12px 36px 12px 56px;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  min-height: 44px;
+  width: 100%;
   background: #fff;
   color: #1a1a1a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.event-date-picker :deep(.dp__input_icon) {
+  inset-inline-start: 16px;
+}
+
+.event-date-picker :deep(.dp__input_icon svg),
+.event-date-picker :deep(.dp__input_icons) {
+  width: 18px;
+  height: 18px;
+}
+
+.event-date-picker :deep(.dp--clear-btn) {
+  inset-inline-end: 10px;
+}
+
+.event-date-picker :deep(.dp__input:hover) {
+  border-color: #ced4da;
+}
+
+.event-date-picker :deep(.dp__input:focus) {
+  outline: none;
+  border-color: #1a1a1a;
+  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+}
+
+.event-date-picker :deep(.dp__menu) {
+  border-radius: 12px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.event-date-picker :deep(.dp__action_select) {
+  background: #1a1a1a;
+}
+
+.event-time-picker :deep(.dp__input) {
+  min-height: 44px;
+  padding: 12px 36px 12px 56px;
+  font-size: 14px;
+}
+
+.time-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.time-section-header > label:first-child {
+  display: block;
+  margin-bottom: 0;
+}
+
+.time-section-header .toggle-label.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.sub-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6c757d;
+}
+
+.toggle-label.compact {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+}
+
+.toggle-text {
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .color-palette {
@@ -1201,9 +2012,13 @@ export default {
 
 .toggle-checkbox {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  width: 0;
-  height: 0;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .toggle-switch {
@@ -1214,6 +2029,7 @@ export default {
   position: relative;
   transition: background 0.2s;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .toggle-switch::after {
@@ -1237,99 +2053,6 @@ export default {
   transform: translateX(18px);
 }
 
-.share-section {
-  margin-top: 8px;
-  border-top: 1px solid #f0f0f0;
-  padding-top: 16px;
-}
-
-.share-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-
-.share-toggle svg {
-  transition: transform 0.2s;
-}
-
-.share-toggle svg.rotated {
-  transform: rotate(180deg);
-}
-
-.share-panel {
-  margin-top: 12px;
-}
-
-.share-hint {
-  font-size: 13px;
-  color: #6c757d;
-  margin-bottom: 12px;
-  line-height: 1.5;
-}
-
-.invite-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.invite-row .input {
-  flex: 1;
-  min-width: 140px;
-}
-
-.input-compact {
-  flex: 0 0 100px;
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
-.member-list {
-  list-style: none;
-  margin-top: 12px;
-}
-
-.member-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 13px;
-  border-bottom: 1px solid #f8f9fa;
-}
-
-.role-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  background: #f0f0f0;
-  border-radius: 10px;
-  color: #6c757d;
-  text-transform: capitalize;
-}
-
-.btn-text-danger {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: #dc3545;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-
-.btn-text-danger:hover {
-  text-decoration: underline;
-}
-
 .modal-actions {
   display: flex;
   gap: 12px;
@@ -1345,23 +2068,140 @@ export default {
   margin-left: auto;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 768px) {
   .form-row {
     grid-template-columns: 1fr;
   }
 
   .calendar-page {
-    padding: 20px;
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
   }
 
-  .page-header {
+  .calendar-topbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .header-actions {
+  .calendar-topbar__actions {
     flex-wrap: wrap;
-    width: 100%;
   }
+
+  .calendar-body {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .calendar-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e9ecef;
+    max-height: 240px;
+  }
+
+  .calendar-tag-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .calendar-tag-list .folder-tag {
+    width: 100%;
+    max-width: none;
+  }
+
+  .calendar-main {
+    min-height: 60vh;
+    overflow: visible;
+  }
+
+  .calendar-wrapper {
+    min-height: 420px;
+  }
+}
+</style>
+
+<!-- Teleported time-picker menu (ui.menu class); scoped styles do not apply -->
+<style>
+.dp__menu.event-time-picker-menu {
+  --dp-time-font-size: 1rem;
+  --dp-time-inc-dec-button-size: 22px;
+  --dp-menu-min-width: 260px;
+  width: auto;
+  min-width: 260px;
+  max-width: 300px;
+  height: auto !important;
+  overflow: visible;
+}
+
+.dp__menu.event-time-picker-menu .dp__menu_inner {
+  padding: 12px 16px;
+}
+
+/* Library sets inline height ~255px on this wrapper; it hid all digits when display:none */
+.dp__menu.event-time-picker-menu .dp__overlay {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  position: relative !important;
+}
+
+.dp__menu.event-time-picker-menu .dp__time_picker_overlay_container,
+.dp__menu.event-time-picker-menu .dp__overlay_row {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.dp__menu.event-time-picker-menu .dp__time_input {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0;
+}
+
+.dp__menu.event-time-picker-menu .dp__time_col {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+.dp__menu.event-time-picker-menu .dp__time_col_reg_block,
+.dp__menu.event-time-picker-menu .dp__time_col_reg_inline,
+.dp__menu.event-time-picker-menu .dp__time_col_reg_with_button {
+  padding: 0 8px;
+}
+
+.dp__menu.event-time-picker-menu .dp__time_col_block,
+.dp__menu.event-time-picker-menu .dp__time_display {
+  font-size: var(--dp-time-font-size);
+  line-height: 1.2;
+  color: var(--dp-text-color, #212121);
+}
+
+.dp__menu.event-time-picker-menu .dp__time_display {
+  min-width: 1.75rem;
+  padding: 10px;
+}
+
+.dp__menu.event-time-picker-menu .dp__inc_dec_button {
+  width: var(--dp-time-inc-dec-button-size);
+  height: var(--dp-time-inc-dec-button-size);
+  padding: 0;
+  margin: 0;
+}
+
+.dp__menu.event-time-picker-menu .dp__inc_dec_button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dp__menu.event-time-picker-menu .dp__action_row {
+  display: none;
 }
 </style>

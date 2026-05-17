@@ -27,6 +27,28 @@ function slugifyTag(name) {
 
 const INTERVAL_MS = 15 * 60 * 1000
 
+function parseQalendarDateTime(s) {
+  if (!s) return new Date()
+  if (!s.includes(' ')) return new Date(s + 'T00:00:00')
+  const [date, time] = s.split(' ')
+  return new Date(`${date}T${time}:00`)
+}
+
+/** Ensure timed events span at least 15 minutes for week grid display. */
+export function enforceMinTimedDuration(startStr, endStr, minMinutes = 15) {
+  if (!startStr?.includes(' ')) return { start: startStr, end: endStr }
+  const start = parseQalendarDateTime(startStr)
+  let end = parseQalendarDateTime(endStr)
+  const minMs = minMinutes * 60 * 1000
+  if (end.getTime() - start.getTime() < minMs) {
+    end = new Date(start.getTime() + minMs)
+  }
+  return {
+    start: startStr,
+    end: formatQalendarDateTime(end)
+  }
+}
+
 export function snapTo15Minutes(date) {
   const d = new Date(date)
   if (Number.isNaN(d.getTime())) return d
@@ -54,6 +76,67 @@ export function useCalendarEvents() {
       .is('user_id', null)
   }
 
+  const upsertUserProfile = async (userId, userEmail, displayName) => {
+    if (!userId || !userEmail) return
+    const email = userEmail.trim().toLowerCase()
+    await supabase
+      .from('user_profiles')
+      .upsert({
+        id: userId,
+        email,
+        display_name: (displayName || email.split('@')[0] || '').trim(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' })
+  }
+
+  const searchUsers = async (query, excludeUserId) => {
+    const q = (query || '').trim()
+    let request = supabase
+      .from('user_profiles')
+      .select('id, email, display_name')
+      .neq('id', excludeUserId)
+      .order('display_name')
+      .limit(50)
+
+    if (q) {
+      const pattern = `%${q}%`
+      request = request.or(`display_name.ilike.${pattern},email.ilike.${pattern}`)
+    }
+
+    const { data, error: err } = await request
+    if (err) {
+      if (err.code === '42P01') return []
+      throw err
+    }
+    if ((data || []).length) return data
+
+    const { data: pubAuthors, error: pubErr } = await supabase
+      .from('public_documents')
+      .select('user_id, user_email, display_name')
+      .not('user_id', 'is', null)
+      .neq('user_id', excludeUserId)
+      .limit(100)
+
+    if (pubErr) return []
+    const seen = new Set()
+    const authors = []
+    for (const row of pubAuthors || []) {
+      const email = (row.user_email || '').toLowerCase()
+      if (!email || seen.has(email)) continue
+      seen.add(email)
+      const name = (row.display_name || email.split('@')[0] || '').trim()
+      if (q && !name.toLowerCase().includes(q.toLowerCase()) && !email.includes(q.toLowerCase())) {
+        continue
+      }
+      authors.push({
+        id: row.user_id,
+        email,
+        display_name: name
+      })
+    }
+    return authors.slice(0, 50)
+  }
+
   const getTags = async (userId, userEmail) => {
     loading.value = true
     error.value = null
@@ -62,10 +145,15 @@ export function useCalendarEvents() {
 
       const { data: memberRows, error: memberErr } = await supabase
         .from('calendar_tag_members')
-        .select('tag_id')
+        .select('tag_id, sort_order')
         .or(`user_id.eq.${userId},user_email.ilike.${userEmail}`)
 
       if (memberErr) throw memberErr
+
+      const sortByTag = {}
+      for (const row of memberRows || []) {
+        sortByTag[row.tag_id] = row.sort_order ?? 0
+      }
 
       const tagIds = [...new Set((memberRows || []).map(r => r.tag_id))]
       if (tagIds.length === 0) {
@@ -77,10 +165,14 @@ export function useCalendarEvents() {
         .from('calendar_tags')
         .select('*')
         .in('id', tagIds)
-        .order('name')
 
       if (err) throw err
-      tags.value = data || []
+      tags.value = (data || []).sort((a, b) => {
+        const orderA = sortByTag[a.id] ?? 0
+        const orderB = sortByTag[b.id] ?? 0
+        if (orderA !== orderB) return orderA - orderB
+        return a.name.localeCompare(b.name)
+      })
       return tags.value
     } catch (err) {
       error.value = err.message
@@ -104,7 +196,7 @@ export function useCalendarEvents() {
       .single()
 
     if (err) throw err
-    tags.value = [...tags.value, data].sort((a, b) => a.name.localeCompare(b.name))
+    tags.value = [...tags.value, data]
     return data
   }
 
@@ -143,6 +235,38 @@ export function useCalendarEvents() {
     if (err) throw err
     members.value = data || []
     return members.value
+  }
+
+  const updateTagOrder = async (userId, userEmail, orderedTagIds) => {
+    const updates = orderedTagIds.map((tagId, index) =>
+      supabase
+        .from('calendar_tag_members')
+        .update({ sort_order: index })
+        .eq('tag_id', tagId)
+        .or(`user_id.eq.${userId},user_email.ilike.${userEmail}`)
+    )
+    const results = await Promise.all(updates)
+    const failed = results.find(r => r.error)
+    if (failed?.error) throw failed.error
+
+    const orderMap = Object.fromEntries(orderedTagIds.map((id, i) => [id, i]))
+    tags.value = [...tags.value].sort((a, b) => {
+      const orderA = orderMap[a.id] ?? 0
+      const orderB = orderMap[b.id] ?? 0
+      if (orderA !== orderB) return orderA - orderB
+      return a.name.localeCompare(b.name)
+    })
+  }
+
+  const inviteMembers = async (tagId, emails, role = 'editor') => {
+    const normalized = [...new Set(
+      emails.map(e => e.trim().toLowerCase()).filter(Boolean)
+    )]
+    const results = []
+    for (const email of normalized) {
+      results.push(await inviteMember(tagId, email, role))
+    }
+    return results
   }
 
   const inviteMember = async (tagId, email, role = 'editor') => {
@@ -266,18 +390,27 @@ export function useCalendarEvents() {
     return (dbEvents || []).map(ev => {
       const tag = ev.calendar_tags || tags.value.find(t => t.id === ev.tag_id)
       const scheme = slugifyTag(tag?.name || 'default')
+      const allDay = !!ev.all_day
+      let start = toQalendarTime(ev.start_at, allDay)
+      let end = toQalendarTime(ev.end_at, allDay)
+      let originalTime = null
+      if (!allDay) {
+        originalTime = { start, end }
+        const adjusted = enforceMinTimedDuration(start, end)
+        start = adjusted.start
+        end = adjusted.end
+      }
       return {
         id: ev.id,
         title: ev.title,
         description: ev.description || '',
         location: ev.location || '',
         with: ev.creator_name || ev.creator_email || '',
-        time: {
-          start: toQalendarTime(ev.start_at, ev.all_day),
-          end: toQalendarTime(ev.end_at, ev.all_day)
-        },
+        time: { start, end },
+        originalTime,
         colorScheme: scheme,
         isEditable: true,
+        isCustom: allDay ? false : 'week',
         topic: tag?.name || ''
       }
     })
@@ -294,12 +427,7 @@ export function useCalendarEvents() {
     return schemes
   }
 
-  const parseQalendarTime = (s) => {
-    if (!s) return new Date()
-    if (!s.includes(' ')) return new Date(s + 'T00:00:00')
-    const [date, time] = s.split(' ')
-    return new Date(`${date}T${time}:00`)
-  }
+  const parseQalendarTime = parseQalendarDateTime
 
   const fromQalendarDrag = (qEvent) => {
     const start = qEvent.time?.start || ''
@@ -333,11 +461,15 @@ export function useCalendarEvents() {
     members,
     TAG_COLORS,
     getTags,
+    upsertUserProfile,
+    searchUsers,
     createTag,
     updateTag,
     deleteTag,
+    updateTagOrder,
     getMembers,
     inviteMember,
+    inviteMembers,
     removeMember,
     getEvents,
     createEvent,
@@ -348,6 +480,7 @@ export function useCalendarEvents() {
     fromQalendarDrag,
     parseQalendarTime,
     snapTo15Minutes,
+    enforceMinTimedDuration,
     formatQalendarDateTime,
     subscribeToEvents,
     slugifyTag
