@@ -60,6 +60,45 @@ export function formatQalendarDateTime(date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+/** Escape user input for PostgREST ilike patterns (* is the % alias in filters). */
+function escapeIlikePattern(input) {
+  return String(input)
+    .replace(/\\/g, '\\\\')
+    .replace(/[%_*]/g, (c) => `\\${c}`)
+}
+
+function postgrestIlikeOr(columns, query) {
+  const pattern = `*${escapeIlikePattern(query)}*`
+  return columns.map((col) => `${col}.ilike.${pattern}`).join(',')
+}
+
+function userMatchesQuery(user, query) {
+  const q = (query || '').trim().toLowerCase()
+  if (!q) return true
+  const name = (user.display_name || '').toLowerCase()
+  const email = (user.email || '').toLowerCase()
+  return name.includes(q) || email.includes(q)
+}
+
+function mergeUserResults(...lists) {
+  const byKey = new Map()
+  for (const list of lists) {
+    for (const row of list || []) {
+      const email = (row.email || row.user_email || '').trim().toLowerCase()
+      const id = row.id || row.user_id
+      if (!email && !id) continue
+      const key = id || email
+      if (byKey.has(key)) continue
+      byKey.set(key, {
+        id,
+        email,
+        display_name: (row.display_name || email.split('@')[0] || '').trim()
+      })
+    }
+  }
+  return [...byKey.values()]
+}
+
 export function useCalendarEvents() {
   const loading = ref(false)
   const error = ref(null)
@@ -89,52 +128,74 @@ export function useCalendarEvents() {
       }, { onConflict: 'id' })
   }
 
-  const searchUsers = async (query, excludeUserId) => {
-    const q = (query || '').trim()
+  const searchUserProfiles = async (q, excludeUserId) => {
     let request = supabase
       .from('user_profiles')
       .select('id, email, display_name')
-      .neq('id', excludeUserId)
       .order('display_name')
       .limit(50)
 
-    if (q) {
-      const pattern = `%${q}%`
-      request = request.or(`display_name.ilike.${pattern},email.ilike.${pattern}`)
-    }
+    if (excludeUserId) request = request.neq('id', excludeUserId)
+    if (q) request = request.or(postgrestIlikeOr(['display_name', 'email'], q))
 
     const { data, error: err } = await request
     if (err) {
       if (err.code === '42P01') return []
       throw err
     }
-    if ((data || []).length) return data
+    return data || []
+  }
 
-    const { data: pubAuthors, error: pubErr } = await supabase
+  const searchPublicDocAuthors = async (q, excludeUserId) => {
+    let request = supabase
       .from('public_documents')
       .select('user_id, user_email, display_name')
       .not('user_id', 'is', null)
-      .neq('user_id', excludeUserId)
       .limit(100)
 
+    if (excludeUserId) request = request.neq('user_id', excludeUserId)
+    if (q) request = request.or(postgrestIlikeOr(['display_name', 'user_email'], q))
+
+    const { data, error: pubErr } = await request
     if (pubErr) return []
+
     const seen = new Set()
     const authors = []
-    for (const row of pubAuthors || []) {
-      const email = (row.user_email || '').toLowerCase()
+    for (const row of data || []) {
+      const email = (row.user_email || '').trim().toLowerCase()
       if (!email || seen.has(email)) continue
       seen.add(email)
-      const name = (row.display_name || email.split('@')[0] || '').trim()
-      if (q && !name.toLowerCase().includes(q.toLowerCase()) && !email.includes(q.toLowerCase())) {
-        continue
-      }
       authors.push({
         id: row.user_id,
         email,
-        display_name: name
+        display_name: (row.display_name || email.split('@')[0] || '').trim()
       })
     }
-    return authors.slice(0, 50)
+    return authors
+  }
+
+  const searchUsers = async (query, excludeUserId) => {
+    const q = (query || '').trim()
+    let profiles = []
+    try {
+      profiles = await searchUserProfiles(q, excludeUserId)
+    } catch (err) {
+      if (err?.code !== '42P01') console.warn('user_profiles search failed', err)
+    }
+
+    let authors = []
+    try {
+      authors = await searchPublicDocAuthors(q, excludeUserId)
+    } catch (err) {
+      console.warn('public_documents user search failed', err)
+    }
+
+    return mergeUserResults(profiles, authors)
+      .filter((user) => userMatchesQuery(user, q))
+      .sort((a, b) =>
+        (a.display_name || a.email).localeCompare(b.display_name || b.email)
+      )
+      .slice(0, 50)
   }
 
   const getTags = async (userId, userEmail) => {
@@ -145,14 +206,16 @@ export function useCalendarEvents() {
 
       const { data: memberRows, error: memberErr } = await supabase
         .from('calendar_tag_members')
-        .select('tag_id, sort_order')
+        .select('tag_id, sort_order, role')
         .or(`user_id.eq.${userId},user_email.ilike.${userEmail}`)
 
       if (memberErr) throw memberErr
 
       const sortByTag = {}
+      const roleByTag = {}
       for (const row of memberRows || []) {
         sortByTag[row.tag_id] = row.sort_order ?? 0
+        roleByTag[row.tag_id] = row.role
       }
 
       const tagIds = [...new Set((memberRows || []).map(r => r.tag_id))]
@@ -167,7 +230,10 @@ export function useCalendarEvents() {
         .in('id', tagIds)
 
       if (err) throw err
-      tags.value = (data || []).sort((a, b) => {
+      tags.value = (data || []).map((tag) => ({
+        ...tag,
+        my_role: roleByTag[tag.id] || (tag.owner_id === userId ? 'owner' : null)
+      })).sort((a, b) => {
         const orderA = sortByTag[a.id] ?? 0
         const orderB = sortByTag[b.id] ?? 0
         if (orderA !== orderB) return orderA - orderB

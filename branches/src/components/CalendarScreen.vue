@@ -15,19 +15,11 @@
         </button>
         <button
           type="button"
-          class="calendar-action-btn calendar-action-share"
-          :disabled="!canShareCalendar"
-          @click="openShareCalendarModal"
+          class="calendar-action-btn calendar-action-info"
+          :disabled="!canOpenCalendarInfo"
+          @click="openCalendarInfoPanel"
         >
-          Share
-        </button>
-        <button
-          type="button"
-          class="calendar-action-btn calendar-action-delete"
-          :disabled="!canDeleteCalendar"
-          @click="openDeleteCalendarModal"
-        >
-          Delete
+          Info
         </button>
       </div>
     </header>
@@ -118,11 +110,177 @@
       </main>
     </div>
 
+    <!-- Calendar info modal -->
+    <div v-if="showCalendarInfoPanel" class="modal-overlay" @click.self="closeCalendarInfoPanel">
+      <div class="modal modal-wide calendar-info-modal">
+        <div class="calendar-info-modal-head">
+          <div>
+            <h3>{{ activeCalendar?.name }}</h3>
+            <span class="calendar-info-type" :class="{ 'is-shared': isInvitedCalendar }">
+              {{ calendarInfoTypeLabel }}
+            </span>
+          </div>
+          <button type="button" class="calendar-info-close" aria-label="Close" @click="closeCalendarInfoPanel">
+            ×
+          </button>
+        </div>
+
+        <div class="calendar-info-body">
+          <section class="calendar-info-section">
+            <h3>Details</h3>
+            <dl class="calendar-info-details">
+              <div class="calendar-info-detail-row">
+                <dt>Owner</dt>
+                <dd>{{ calendarOwnerLabel }}</dd>
+              </div>
+              <div class="calendar-info-detail-row">
+                <dt>Your role</dt>
+                <dd>{{ currentUserCalendarRole }}</dd>
+              </div>
+              <div class="calendar-info-detail-row">
+                <dt>Events</dt>
+                <dd>{{ calendarDeleteEventCount }}</dd>
+              </div>
+              <div v-if="calendarCreatedLabel" class="calendar-info-detail-row">
+                <dt>Created</dt>
+                <dd>{{ calendarCreatedLabel }}</dd>
+              </div>
+            </dl>
+            <p v-if="isInvitedCalendar" class="calendar-info-hint">
+              You were invited to this calendar. Sharing, removing members, and deleting are only available to the owner.
+              <template v-if="!canEditCalendarEvents"> Members can view events but cannot edit them.</template>
+            </p>
+          </section>
+
+          <section class="calendar-info-section">
+            <div class="calendar-info-section-head">
+              <h3>Members</h3>
+              <span class="calendar-info-count">{{ infoCalendarMembers.length }}</span>
+            </div>
+            <p v-if="infoRemoveMode" class="calendar-info-hint">
+              Select members to remove from this calendar.
+            </p>
+            <div v-if="infoLoadingMembers" class="calendar-info-loading">Loading members…</div>
+            <ul v-else-if="infoCalendarMembers.length" class="calendar-info-members">
+              <li
+                v-for="member in infoCalendarMembers"
+                :key="member.id"
+                class="calendar-info-member"
+                :class="{ selectable: infoRemoveMode && canRemoveMember(member) }"
+                @click="infoRemoveMode && canRemoveMember(member) && toggleInfoMemberSelection(member.id)"
+              >
+                <input
+                  v-if="infoRemoveMode && canRemoveMember(member)"
+                  type="checkbox"
+                  class="calendar-info-member-checkbox"
+                  :checked="infoSelectedMemberIds.includes(member.id)"
+                  @click.stop
+                  @change="toggleInfoMemberSelection(member.id)"
+                />
+                <span class="calendar-info-member-avatar">{{ memberInitial(member) }}</span>
+                <div class="calendar-info-member-info">
+                  <span class="calendar-info-member-name">{{ memberLabel(member) }}</span>
+                  <span class="calendar-info-member-email">{{ member.user_email }}</span>
+                </div>
+                <span class="calendar-info-member-role" :class="`role-${memberRoleClass(member.role)}`">
+                  {{ memberRoleLabel(member.role) }}
+                </span>
+              </li>
+            </ul>
+            <p v-else class="calendar-info-empty">No members listed yet.</p>
+          </section>
+        </div>
+
+        <footer class="calendar-info-footer">
+          <template v-if="infoRemoveMode">
+            <button type="button" class="btn-secondary" @click="cancelInfoRemoveMode">Cancel</button>
+            <button
+              type="button"
+              class="btn-danger"
+              :disabled="!canManageCalendar || !infoSelectedMemberIds.length || saving"
+              @click="openRemoveMembersModal"
+            >
+              {{ saving ? 'Removing…' : `Remove (${infoSelectedMemberIds.length})` }}
+            </button>
+          </template>
+          <template v-else>
+            <button
+              type="button"
+              class="calendar-info-action-btn calendar-info-action-share"
+              :disabled="!canManageCalendar"
+              :title="!canManageCalendar ? 'Only the owner can share' : 'Share calendar'"
+              @click="openShareFromInfo"
+            >
+              Share
+            </button>
+            <button
+              type="button"
+              class="calendar-info-action-btn calendar-info-action-remove"
+              :disabled="!canManageCalendar || !removableMembersCount"
+              :title="!canManageCalendar ? 'Only the owner can remove members' : 'Remove members'"
+              @click="startInfoRemoveMode"
+            >
+              Remove
+            </button>
+            <button
+              type="button"
+              class="calendar-info-action-btn calendar-info-action-delete"
+              :disabled="!canManageCalendar"
+              :title="!canManageCalendar ? 'Only the owner can delete' : 'Delete calendar'"
+              @click="openDeleteFromInfo"
+            >
+              Delete
+            </button>
+          </template>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Confirm remove members -->
+    <div v-if="showRemoveMembersModal" class="modal-overlay" @click.self="showRemoveMembersModal = false">
+      <div class="modal">
+        <h3>Remove members</h3>
+        <p class="modal-warning">
+          Remove {{ membersToRemove.length }} member{{ membersToRemove.length === 1 ? '' : 's' }} from
+          "{{ activeCalendar?.name }}"? They will lose access to this calendar.
+          This action cannot be undone.
+        </p>
+        <ul class="calendar-info-remove-preview">
+          <li v-for="member in membersToRemove" :key="member.id">
+            {{ member.user_email }}
+          </li>
+        </ul>
+        <div class="modal-actions modal-actions-confirm">
+          <button type="button" class="btn-secondary" @click="showRemoveMembersModal = false">Cancel</button>
+          <button type="button" class="btn-danger" :disabled="saving" @click="performRemoveMembers">Remove</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Share calendar modal -->
     <div v-if="showShareCalendarModal" class="modal-overlay" @click.self="closeShareCalendarModal">
       <div class="modal modal-wide share-modal">
         <h3>Share "{{ activeCalendar?.name }}"</h3>
         <p class="share-modal-hint">Search and select people to share this calendar with.</p>
+        <div class="form-group share-role-group">
+          <label>Access level</label>
+          <div class="share-role-options">
+            <label class="share-role-option" :class="{ active: shareInviteRole === 'admin' }">
+              <input v-model="shareInviteRole" type="radio" value="admin" />
+              <span class="share-role-option-text">
+                <span class="share-role-title">Admin</span>
+                <span class="share-role-desc">Can create and edit events</span>
+              </span>
+            </label>
+            <label class="share-role-option" :class="{ active: shareInviteRole === 'member' }">
+              <input v-model="shareInviteRole" type="radio" value="member" />
+              <span class="share-role-option-text">
+                <span class="share-role-title">Member</span>
+                <span class="share-role-desc">View only — cannot edit events</span>
+              </span>
+            </label>
+          </div>
+        </div>
         <div class="form-group">
           <label>Search users</label>
           <input
@@ -133,12 +291,13 @@
             autocomplete="off"
           />
         </div>
+        <div v-if="shareSearchError" class="share-search-error">{{ shareSearchError }}</div>
         <div v-if="shareLoadingUsers" class="share-loading">Loading users…</div>
         <ul v-else class="share-user-list">
           <li v-if="!filteredShareUsers.length" class="share-empty">No users found</li>
           <li
             v-for="user in filteredShareUsers"
-            :key="user.id"
+            :key="user.id || user.email"
             class="share-user-row"
             :class="{ selected: isShareUserSelected(user), disabled: isShareUserAlreadyMember(user) }"
             @click="toggleShareUser(user)"
@@ -166,7 +325,7 @@
               :key="member.id"
               class="share-chip"
             >
-              {{ memberLabel(member) }}
+              {{ memberLabel(member) }} · {{ memberRoleLabel(member.role) }}
             </span>
           </div>
         </div>
@@ -180,6 +339,21 @@
           >
             {{ saving ? 'Sharing…' : `Share (${shareSelectedEmails.length})` }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm delete event (same pattern as Library) -->
+    <div v-if="showDeleteEventModal" class="modal-overlay" @click.self="cancelDeleteEvent">
+      <div class="modal">
+        <h3>Confirm Delete</h3>
+        <p class="modal-warning">
+          Are you sure you want to delete "{{ eventToDelete?.title || 'this event' }}"?
+          This action cannot be undone.
+        </p>
+        <div class="modal-actions modal-actions-confirm">
+          <button type="button" class="btn-secondary" @click="cancelDeleteEvent">Cancel</button>
+          <button type="button" class="btn-danger" :disabled="saving" @click="performDeleteEvent">Delete</button>
         </div>
       </div>
     </div>
@@ -403,7 +577,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { Qalendar } from 'qalendar'
 import 'qalendar/dist/style.css'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
@@ -584,12 +758,23 @@ export default {
     const showEventModal = ref(false)
     const showCreateCalendarModal = ref(false)
     const showDeleteCalendarModal = ref(false)
+    const showDeleteEventModal = ref(false)
+    const eventToDelete = ref(null)
     const showShareCalendarModal = ref(false)
     const shareSearchQuery = ref('')
     const shareUsers = ref([])
     const shareLoadingUsers = ref(false)
     const shareSelectedUserIds = ref([])
     const shareCalendarMembers = ref([])
+    const shareSearchError = ref('')
+    const shareInviteRole = ref('admin')
+    const showCalendarInfoPanel = ref(false)
+    const infoCalendarMembers = ref([])
+    const infoLoadingMembers = ref(false)
+    const infoRemoveMode = ref(false)
+    const infoSelectedMemberIds = ref([])
+    const showRemoveMembersModal = ref(false)
+    const membersToRemove = ref([])
     const tagDragIndex = ref(null)
     const tagDropIndex = ref(null)
     const calendarWrapperRef = ref(null)
@@ -632,6 +817,7 @@ export default {
       updateTagOrder,
       getMembers,
       inviteMembers,
+      removeMember,
       getEvents,
       createEvent,
       updateEvent,
@@ -651,10 +837,72 @@ export default {
       return Boolean(cal && cal.owner_id === userId.value)
     })
 
-    const canShareCalendar = computed(() => Boolean(activeTagId.value))
+    const canOpenCalendarInfo = computed(() => Boolean(activeTagId.value))
+
+    const canManageCalendar = computed(() => {
+      const cal = activeCalendar.value
+      return Boolean(cal && cal.owner_id === userId.value)
+    })
+
+    const isInvitedCalendar = computed(() => {
+      const cal = activeCalendar.value
+      return Boolean(cal && cal.owner_id !== userId.value)
+    })
+
+    const calendarInfoTypeLabel = computed(() =>
+      isInvitedCalendar.value ? 'Shared with you' : 'Your calendar'
+    )
+
+    const calendarOwnerLabel = computed(() => {
+      const cal = activeCalendar.value
+      if (!cal) return '—'
+      const ownerMember = infoCalendarMembers.value.find(m => m.role === 'owner')
+      return ownerMember?.user_email || cal.owner_email || '—'
+    })
+
+    const currentUserCalendarRole = computed(() => {
+      const email = (userEmail.value || '').toLowerCase()
+      const me = infoCalendarMembers.value.find(m =>
+        m.user_id === userId.value ||
+        (m.user_email || '').toLowerCase() === email
+      )
+      return memberRoleLabel(me?.role || (canManageCalendar.value ? 'owner' : 'member'))
+    })
+
+    const calendarCreatedLabel = computed(() => {
+      const created = activeCalendar.value?.created_at
+      if (!created) return ''
+      return new Date(created).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    })
+
+    const removableMembersCount = computed(() =>
+      infoCalendarMembers.value.filter(m => m.role !== 'owner').length
+    )
 
     const isPersonalTag = (tag) => tag.owner_id === userId.value
     const isSharedTag = (tag) => tag.owner_id !== userId.value
+
+    const canEditTag = (tagId) => {
+      if (!tagId) return false
+      const tag = tags.value.find(t => t.id === tagId)
+      if (!tag) return false
+      if (tag.owner_id === userId.value) return true
+      const role = tag.my_role
+      return role === 'owner' || role === 'editor'
+    }
+
+    const canEditCalendarEvents = computed(() => {
+      if (!activeTagId.value) {
+        return tags.value.some(t => canEditTag(t.id))
+      }
+      return canEditTag(activeTagId.value)
+    })
+
+    const shareRoleToDbRole = (shareRole) => (shareRole === 'admin' ? 'editor' : 'viewer')
 
     const calendarTagStyle = (tag) => {
       if (isSharedTag(tag)) {
@@ -663,7 +911,15 @@ export default {
       return { color: tag.color, borderColor: tag.color }
     }
 
-    const filteredShareUsers = computed(() => shareUsers.value)
+    const filteredShareUsers = computed(() => {
+      const q = shareSearchQuery.value.trim().toLowerCase()
+      if (!q) return shareUsers.value
+      return shareUsers.value.filter((user) => {
+        const name = (user.display_name || '').toLowerCase()
+        const email = (user.email || '').toLowerCase()
+        return name.includes(q) || email.includes(q)
+      })
+    })
 
     const shareSelectedEmails = computed(() =>
       shareUsers.value
@@ -751,7 +1007,7 @@ export default {
       borderColor: tag.color
     })
 
-    const { dragPreview, attach: attachDragCreate, ensureAttach: ensureDragCreate, detach: detachDragCreate } = useCalendarDragCreate({
+    const { dragPreview, ensureAttach: ensureDragCreate, detach: detachDragCreate } = useCalendarDragCreate({
       wrapperRef: calendarWrapperRef,
       getPeriod: () => calendarPeriod.value,
       onRangeSelected: ({ start, end, allDay }) => {
@@ -759,6 +1015,12 @@ export default {
           loadError.value = 'Create a calendar first, then drag on the grid to add an event.'
           return
         }
+        const tagId = activeTagId.value || tags.value.find(t => canEditTag(t.id))?.id
+        if (!tagId || !canEditTag(tagId)) {
+          loadError.value = calendarEditDeniedMessage
+          return
+        }
+        if (!activeTagId.value) activeTagId.value = tagId
         openNewEvent(start, end, allDay)
       }
     })
@@ -908,6 +1170,11 @@ export default {
         loadError.value = 'Create a calendar first, then drag on the grid to add an event.'
         return
       }
+      const tagId = activeTagId.value || tags.value.find(t => canEditTag(t.id))?.id
+      if (!tagId || !canEditTag(tagId)) {
+        loadError.value = calendarEditDeniedMessage
+        return
+      }
       editingEventId.value = null
       resetEventForm(startHint, endHint, allDay)
       showEventModal.value = true
@@ -917,6 +1184,10 @@ export default {
       const eventId = resolveQalendarEventId(payload)
       const db = events.value.find(e => e.id === eventId)
       if (!db) return
+      if (!canEditTag(db.tag_id)) {
+        loadError.value = calendarEditDeniedMessage
+        return
+      }
       editingEventId.value = db.id
       eventForm.value = {
         title: db.title,
@@ -936,6 +1207,10 @@ export default {
     const saveEvent = async () => {
       if (!eventForm.value.tagId) {
         loadError.value = 'Please select a calendar'
+        return
+      }
+      if (!canEditTag(eventForm.value.tagId)) {
+        loadError.value = calendarEditDeniedMessage
         return
       }
       saving.value = true
@@ -977,34 +1252,75 @@ export default {
       }
     }
 
-    const confirmDeleteEvent = async () => {
-      if (!editingEventId.value || !confirm('Delete this event?')) return
+    const getEventTitleById = (eventId) => {
+      const event = events.value.find(e => e.id === eventId)
+      return (event?.title || '').trim() || 'Untitled'
+    }
+
+    const openDeleteEventModal = (eventId, title) => {
+      if (!eventId) return
+      eventToDelete.value = {
+        id: eventId,
+        title: (title || '').trim() || getEventTitleById(eventId)
+      }
+      showDeleteEventModal.value = true
+    }
+
+    const cancelDeleteEvent = () => {
+      showDeleteEventModal.value = false
+      eventToDelete.value = null
+    }
+
+    const confirmDeleteEvent = () => {
+      if (!editingEventId.value) return
+      if (!canEditTag(eventForm.value.tagId)) {
+        loadError.value = calendarEditDeniedMessage
+        return
+      }
+      openDeleteEventModal(editingEventId.value, eventForm.value.title)
+    }
+
+    const performDeleteEvent = async () => {
+      const target = eventToDelete.value
+      if (!target?.id) return
       saving.value = true
+      loadError.value = ''
       try {
-        await deleteEvent(editingEventId.value)
-        closeEventModal()
+        await deleteEvent(target.id)
+        const wasEditing = editingEventId.value === target.id
+        cancelDeleteEvent()
+        if (wasEditing) closeEventModal()
         await refreshEvents()
       } catch (err) {
-        loadError.value = err.message
+        loadError.value = err.message || 'Failed to delete event'
       } finally {
         saving.value = false
       }
     }
 
-    const onDeleteEvent = async (payload) => {
+    const onDeleteEvent = (payload) => {
       const eventId = resolveQalendarEventId(payload)
-      if (!eventId || !confirm('Delete this event?')) return
-      try {
-        await deleteEvent(eventId)
-        await refreshEvents()
-      } catch (err) {
-        loadError.value = err.message
+      if (!eventId) return
+      const db = events.value.find(e => e.id === eventId)
+      if (db && !canEditTag(db.tag_id)) {
+        loadError.value = calendarEditDeniedMessage
+        return
       }
+      const title = typeof payload === 'object' && payload != null
+        ? (payload.title || payload.name || '')
+        : ''
+      openDeleteEventModal(eventId, title)
     }
 
     const onEventDragged = async (qEvent) => {
       const eventId = resolveQalendarEventId(qEvent)
       if (!eventId) return
+      const db = events.value.find(e => e.id === eventId)
+      if (db && !canEditTag(db.tag_id)) {
+        loadError.value = calendarEditDeniedMessage
+        await refreshEvents()
+        return
+      }
       try {
         await updateEvent(eventId, fromQalendarDrag(qEvent))
         await refreshEvents()
@@ -1024,10 +1340,12 @@ export default {
     let shareSearchTimer = null
     const loadShareUsers = async () => {
       shareLoadingUsers.value = true
+      shareSearchError.value = ''
       try {
         shareUsers.value = await searchUsers(shareSearchQuery.value, userId.value)
       } catch (err) {
-        loadError.value = err.message || 'Failed to load users'
+        shareSearchError.value = err.message || 'Failed to load users'
+        shareUsers.value = []
       } finally {
         shareLoadingUsers.value = false
       }
@@ -1039,8 +1357,15 @@ export default {
       shareSearchTimer = setTimeout(loadShareUsers, 250)
     })
 
+    watch(activeTagId, () => {
+      if (showCalendarInfoPanel.value) closeCalendarInfoPanel()
+    })
+
     const isShareUserSelected = (user) => shareSelectedUserIds.value.includes(user.id)
-    const isShareUserAlreadyMember = (user) => memberEmails.value.has(user.email.toLowerCase())
+    const isShareUserAlreadyMember = (user) => {
+      const email = (user.email || '').toLowerCase()
+      return email ? memberEmails.value.has(email) : false
+    }
 
     const toggleShareUser = (user) => {
       if (isShareUserAlreadyMember(user)) return
@@ -1057,19 +1382,130 @@ export default {
       return email.split('@')[0] || email
     }
 
-    const openShareCalendarModal = async () => {
-      if (!canShareCalendar.value) return
-      if (!activeCalendar.value || activeCalendar.value.owner_id !== userId.value) {
-        loadError.value = 'Only the calendar owner can share it.'
+    const memberRoleLabel = (role) => {
+      if (role === 'owner') return 'Owner'
+      if (role === 'editor') return 'Admin'
+      if (role === 'viewer') return 'Member'
+      return 'Member'
+    }
+
+    const memberRoleClass = (role) => {
+      if (role === 'owner') return 'owner'
+      if (role === 'editor') return 'admin'
+      if (role === 'viewer') return 'member'
+      return 'member'
+    }
+
+    const calendarEditDeniedMessage = 'You do not have permission to edit events on this calendar.'
+
+    const memberInitial = (member) => {
+      const label = memberLabel(member)
+      return (label.charAt(0) || '?').toUpperCase()
+    }
+
+    const canRemoveMember = (member) => member.role !== 'owner'
+
+    const refreshInfoMembers = async () => {
+      if (!activeTagId.value) {
+        infoCalendarMembers.value = []
         return
       }
+      infoLoadingMembers.value = true
+      try {
+        infoCalendarMembers.value = await getMembers(activeTagId.value)
+        shareCalendarMembers.value = infoCalendarMembers.value
+      } catch (err) {
+        infoCalendarMembers.value = []
+        loadError.value = err.message || 'Failed to load calendar members'
+      } finally {
+        infoLoadingMembers.value = false
+      }
+    }
+
+    const closeCalendarInfoPanel = () => {
+      showCalendarInfoPanel.value = false
+      infoRemoveMode.value = false
+      infoSelectedMemberIds.value = []
+    }
+
+    const openCalendarInfoPanel = async () => {
+      if (!canOpenCalendarInfo.value) return
+      showCalendarInfoPanel.value = true
+      infoRemoveMode.value = false
+      infoSelectedMemberIds.value = []
+      loadError.value = ''
+      await refreshInfoMembers()
+    }
+
+    const openShareFromInfo = () => {
+      if (!canManageCalendar.value) return
+      openShareCalendarModal()
+    }
+
+    const openDeleteFromInfo = () => {
+      if (!canManageCalendar.value) return
+      openDeleteCalendarModal()
+    }
+
+    const startInfoRemoveMode = () => {
+      if (!canManageCalendar.value) return
+      infoRemoveMode.value = true
+      infoSelectedMemberIds.value = []
+    }
+
+    const cancelInfoRemoveMode = () => {
+      infoRemoveMode.value = false
+      infoSelectedMemberIds.value = []
+    }
+
+    const toggleInfoMemberSelection = (memberId) => {
+      const ids = infoSelectedMemberIds.value
+      if (ids.includes(memberId)) {
+        infoSelectedMemberIds.value = ids.filter(id => id !== memberId)
+      } else {
+        infoSelectedMemberIds.value = [...ids, memberId]
+      }
+    }
+
+    const openRemoveMembersModal = () => {
+      if (!infoSelectedMemberIds.value.length) return
+      membersToRemove.value = infoCalendarMembers.value.filter(m =>
+        infoSelectedMemberIds.value.includes(m.id)
+      )
+      showRemoveMembersModal.value = true
+    }
+
+    const performRemoveMembers = async () => {
+      if (!membersToRemove.value.length) return
+      saving.value = true
+      loadError.value = ''
+      try {
+        for (const member of membersToRemove.value) {
+          await removeMember(member.id)
+        }
+        showRemoveMembersModal.value = false
+        membersToRemove.value = []
+        infoSelectedMemberIds.value = []
+        infoRemoveMode.value = false
+        await refreshInfoMembers()
+      } catch (err) {
+        loadError.value = err.message || 'Failed to remove members'
+      } finally {
+        saving.value = false
+      }
+    }
+
+    const openShareCalendarModal = async () => {
+      if (!canManageCalendar.value) return
       showShareCalendarModal.value = true
       shareSearchQuery.value = ''
       shareSelectedUserIds.value = []
+      shareSearchError.value = ''
+      shareInviteRole.value = 'admin'
       loadError.value = ''
       try {
-        shareCalendarMembers.value = await getMembers(activeTagId.value)
-      } catch (err) {
+        await refreshInfoMembers()
+      } catch {
         shareCalendarMembers.value = []
       }
       await loadShareUsers()
@@ -1078,6 +1514,8 @@ export default {
     const closeShareCalendarModal = () => {
       showShareCalendarModal.value = false
       shareSelectedUserIds.value = []
+      shareSearchError.value = ''
+      shareInviteRole.value = 'admin'
     }
 
     const performShareCalendar = async () => {
@@ -1085,8 +1523,12 @@ export default {
       saving.value = true
       loadError.value = ''
       try {
-        await inviteMembers(activeTagId.value, shareSelectedEmails.value)
-        shareCalendarMembers.value = await getMembers(activeTagId.value)
+        await inviteMembers(
+          activeTagId.value,
+          shareSelectedEmails.value,
+          shareRoleToDbRole(shareInviteRole.value)
+        )
+        await refreshInfoMembers()
         shareSelectedUserIds.value = []
         closeShareCalendarModal()
       } catch (err) {
@@ -1140,6 +1582,7 @@ export default {
       try {
         await deleteTag(cal.id)
         showDeleteCalendarModal.value = false
+        closeCalendarInfoPanel()
         activeTagId.value = null
         await refreshEvents()
       } catch (err) {
@@ -1159,7 +1602,35 @@ export default {
       dragPreview,
       activeCalendar,
       canDeleteCalendar,
-      canShareCalendar,
+      canOpenCalendarInfo,
+      canManageCalendar,
+      isInvitedCalendar,
+      calendarInfoTypeLabel,
+      calendarOwnerLabel,
+      currentUserCalendarRole,
+      calendarCreatedLabel,
+      removableMembersCount,
+      showCalendarInfoPanel,
+      infoCalendarMembers,
+      infoLoadingMembers,
+      infoRemoveMode,
+      infoSelectedMemberIds,
+      showRemoveMembersModal,
+      membersToRemove,
+      openCalendarInfoPanel,
+      closeCalendarInfoPanel,
+      openShareFromInfo,
+      openDeleteFromInfo,
+      startInfoRemoveMode,
+      cancelInfoRemoveMode,
+      toggleInfoMemberSelection,
+      openRemoveMembersModal,
+      performRemoveMembers,
+      canRemoveMember,
+      memberRoleLabel,
+      memberRoleClass,
+      memberInitial,
+      canEditCalendarEvents,
       isPersonalTag,
       isSharedTag,
       calendarTagStyle,
@@ -1168,6 +1639,8 @@ export default {
       tagDropIndex,
       showShareCalendarModal,
       shareSearchQuery,
+      shareSearchError,
+      shareInviteRole,
       shareLoadingUsers,
       filteredShareUsers,
       shareCalendarMembers,
@@ -1182,6 +1655,10 @@ export default {
       showEventModal,
       showCreateCalendarModal,
       showDeleteCalendarModal,
+      showDeleteEventModal,
+      eventToDelete,
+      cancelDeleteEvent,
+      performDeleteEvent,
       editingEventId,
       eventForm,
       eventStartTime,
@@ -1481,6 +1958,329 @@ export default {
   cursor: not-allowed;
 }
 
+.calendar-action-info {
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.calendar-action-info:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.calendar-action-info:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar-info-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  width: 100%;
+  max-height: min(85vh, 720px);
+  padding: 0;
+  overflow: hidden;
+}
+
+.calendar-info-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.calendar-info-modal-head h3 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.calendar-info-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.calendar-info-close:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.calendar-info-type {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4f46e5;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.calendar-info-type.is-shared {
+  color: #7c3aed;
+}
+
+.calendar-info-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  min-height: 0;
+}
+
+.calendar-info-section + .calendar-info-section {
+  margin-top: 28px;
+}
+
+.calendar-info-section h3 {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.calendar-info-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.calendar-info-section-head h3 {
+  margin: 0;
+}
+
+.calendar-info-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.calendar-info-details {
+  margin: 0;
+}
+
+.calendar-info-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f3f5;
+  font-size: 14px;
+}
+
+.calendar-info-detail-row dt {
+  margin: 0;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.calendar-info-detail-row dd {
+  margin: 0;
+  color: #1a1a1a;
+  text-align: right;
+}
+
+.calendar-info-hint {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.calendar-info-loading,
+.calendar-info-empty {
+  font-size: 13px;
+  color: #6b7280;
+  padding: 8px 0;
+}
+
+.calendar-info-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.calendar-info-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.calendar-info-member:last-child {
+  border-bottom: none;
+}
+
+.calendar-info-member.selectable {
+  cursor: pointer;
+}
+
+.calendar-info-member.selectable:hover {
+  background: #f9fafb;
+}
+
+.calendar-info-member-checkbox {
+  flex-shrink: 0;
+}
+
+.calendar-info-member-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.calendar-info-member-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calendar-info-member-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.calendar-info-member-email {
+  font-size: 12px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-info-member-role {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.calendar-info-member-role.role-owner {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.calendar-info-member-role.role-admin {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.calendar-info-member-role.role-member {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.calendar-info-footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px 20px;
+  border-top: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.calendar-info-action-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.calendar-info-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar-info-action-share {
+  background: #fff;
+  color: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.calendar-info-action-share:hover:not(:disabled) {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.calendar-info-action-remove {
+  background: #fff;
+  color: #b45309;
+  border-color: #f59e0b;
+}
+
+.calendar-info-action-remove:hover:not(:disabled) {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.calendar-info-action-delete {
+  background: #fff;
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.calendar-info-action-delete:hover:not(:disabled) {
+  background: #dc3545;
+  color: #fff;
+}
+
+.calendar-info-remove-preview {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.calendar-info-remove-preview li + li {
+  margin-top: 6px;
+}
+
 .calendar-tag {
   display: inline-flex;
   align-items: center;
@@ -1519,6 +2319,66 @@ export default {
   font-size: 13px;
   color: #6c757d;
   margin: -12px 0 16px;
+}
+
+.share-role-group {
+  margin-bottom: 16px;
+}
+
+.share-role-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-role-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.share-role-option:hover {
+  border-color: #c7d2fe;
+  background: #fafbff;
+}
+
+.share-role-option.active {
+  border-color: #4f46e5;
+  background: #eef2ff;
+}
+
+.share-role-option input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.share-role-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.share-role-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.share-role-desc {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.share-search-error {
+  font-size: 13px;
+  color: #c0392b;
+  margin-bottom: 8px;
 }
 
 .share-loading,
@@ -1759,7 +2619,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1200;
   padding: 24px;
 }
 
