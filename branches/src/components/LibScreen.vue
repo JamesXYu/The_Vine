@@ -770,14 +770,42 @@ export default {
       return docs
     })
 
+    const normalizeFolderPath = (path) => (path || '').trim()
+
+    const publicFolderNameSet = computed(() =>
+      new Set(publicFolders.value.map((f) => normalizeFolderPath(f.name)))
+    )
+
+    const isOrphanPublicDocument = (doc) => {
+      const folder = normalizeFolderPath(doc.folder)
+      if (!folder) return false
+      return !publicFolderNameSet.value.has(folder)
+    }
+
+    const isPublicDocInFolderTree = (doc, folderPath) => {
+      const docFolder = normalizeFolderPath(doc.folder)
+      const base = normalizeFolderPath(folderPath)
+      if (!base || !docFolder) return false
+      return docFolder === base || docFolder.startsWith(`${base}/`)
+    }
+
+    const isPublicDocAtRoot = (doc) => {
+      const docFolder = normalizeFolderPath(doc.folder)
+      if (!docFolder) return true
+      return isOrphanPublicDocument(doc)
+    }
+
     // Helper function to recursively count all documents in a folder and its subfolders
     const countAllDocumentsInFolder = (folderName, documents, allFolders) => {
+      const normalizedFolder = normalizeFolderPath(folderName)
       // Count documents directly in this folder
-      let count = documents.filter(d => d.folder === folderName).length
+      let count = documents.filter(
+        (d) => normalizeFolderPath(d.folder) === normalizedFolder
+      ).length
       
       // Find all subfolders (folders whose path starts with "folderName/")
-      const prefix = folderName + '/'
-      const subfolders = allFolders.filter(f => f.name.startsWith(prefix))
+      const prefix = normalizedFolder + '/'
+      const subfolders = allFolders.filter((f) => normalizeFolderPath(f.name).startsWith(prefix))
       
       // Recursively count documents in each subfolder
       for (const subfolder of subfolders) {
@@ -848,13 +876,13 @@ export default {
 
     // Public documents in current view
     const currentPublicDocsInView = computed(() => {
-      let docs = publicDocuments.value.filter(doc => {
+      let docs = publicDocuments.value.filter((doc) => {
         if (currentPublicFolder.value) {
-          // When viewing a specific folder, show documents in that folder
-          return doc.folder === currentPublicFolder.value
+          // Include documents in this folder and any subfolders
+          return isPublicDocInFolderTree(doc, currentPublicFolder.value)
         }
-        // When viewing root, only show documents that are not in any folder
-        return !doc.folder
+        // Root: unfiled docs + orphans (folder path with no matching folder record)
+        return isPublicDocAtRoot(doc)
       })
       
       if (searchQuery.value) {

@@ -31,12 +31,12 @@
           <div class="calendar-tag-list">
             <button
               type="button"
-              class="folder-tag"
+              class="folder-tag calendar-all-btn"
               :class="{ active: activeTagId === null }"
               @click="activeTagId = null"
-              :title="'All calendars'"
+              title="All calendars"
             >
-              {{ truncateTagLabel('All calendars') }}
+              All calendars
             </button>
             <button
               v-for="(tag, index) in tags"
@@ -58,15 +58,18 @@
               @drop.prevent="onTagDrop($event, index)"
               @dragend="onTagDragEnd"
             >
-              <span v-if="isSharedTag(tag)" class="tag-shared-icon" aria-hidden="true">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
+              <span class="calendar-tag-row">
+                <span v-if="tag.is_shared" class="tag-shared-icon" aria-hidden="true">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </span>
+                <span class="calendar-tag-label" :title="tag.name">{{ truncateTagLabel(tag.name) }}</span>
               </span>
-              <span class="calendar-tag-label" :title="tag.name">{{ truncateTagLabel(tag.name) }}</span>
+              <span v-if="tag.is_shared" class="calendar-kind-badge">Shared</span>
             </button>
           </div>
         </section>
@@ -75,16 +78,23 @@
       <main class="calendar-main">
         <div v-if="loadError" class="error-banner">{{ loadError }}</div>
 
-        <div ref="calendarWrapperRef" class="calendar-wrapper is-light-mode">
+        <div
+          ref="calendarWrapperRef"
+          class="calendar-wrapper is-light-mode"
+          :class="{ 'is-scroll-month': qalendarMode === 'month' }"
+        >
           <Qalendar
+            ref="qalendarRef"
             :events="qalendarEvents"
             :config="qalendarConfig"
+            :selected-date="calendarPeriod.selectedDate"
             :is-loading="loading"
             @edit-event="onEditEvent"
             @delete-event="onDeleteEvent"
             @event-was-dragged="onEventDragged"
             @event-was-resized="onEventResized"
             @updated-period="onPeriodUpdated"
+            @updated-mode="onQalendarModeUpdated"
           >
             <template #weekDayEvent="{ eventData }">
               <div
@@ -100,7 +110,31 @@
                 </p>
               </div>
             </template>
+            <template #eventDialog="{ eventDialogData, closeEventDialog }">
+              <EventFlyoutContent
+                :q-event="eventDialogData"
+                :db-event="dbEventById(eventDialogData?.id)"
+                :saving="saving"
+                :show-rsvp-actions="showFlyoutRsvpActions(eventDialogData?.id)"
+                :can-edit="canOpenEventFlyoutEdit(eventDialogData?.id)"
+                :can-delete="canDeleteFlyoutEvent(eventDialogData?.id)"
+                @accept="handleFlyoutRsvp(eventDialogData?.id, 'accepted', closeEventDialog)"
+                @reject="handleFlyoutRsvp(eventDialogData?.id, 'rejected', closeEventDialog)"
+                @edit="flyoutOpenEdit(eventDialogData?.id, closeEventDialog)"
+                @delete="flyoutOpenDelete(eventDialogData, closeEventDialog)"
+                @close="closeEventDialog()"
+              />
+            </template>
           </Qalendar>
+          <CalendarScrollMonth
+            v-if="qalendarMode === 'month'"
+            :events="qalendarEvents"
+            :color-schemes="qalendarConfig.style?.colorSchemes || {}"
+            :selected-date="calendarPeriod.selectedDate"
+            :root-ref="calendarWrapperRef"
+            @select-event="onSelectMonthEvent"
+            @updated-period="onScrollMonthPeriodUpdated"
+          />
           <div
             v-if="dragPreview"
             class="drag-preview"
@@ -155,7 +189,7 @@
           <section class="calendar-info-section">
             <div class="calendar-info-section-head">
               <h3>Members</h3>
-              <span class="calendar-info-count">{{ infoCalendarMembers.length }}</span>
+              <span class="calendar-info-count">{{ infoMemberCountLabel }}</span>
             </div>
             <p v-if="infoRemoveMode" class="calendar-info-hint">
               Select members to remove from this calendar.
@@ -166,7 +200,10 @@
                 v-for="member in infoCalendarMembers"
                 :key="member.id"
                 class="calendar-info-member"
-                :class="{ selectable: infoRemoveMode && canRemoveMember(member) }"
+                :class="{
+                  selectable: infoRemoveMode && canRemoveMember(member),
+                  'is-pending-invite': isPendingCalendarMember(member)
+                }"
                 @click="infoRemoveMode && canRemoveMember(member) && toggleInfoMemberSelection(member.id)"
               >
                 <input
@@ -182,8 +219,8 @@
                   <span class="calendar-info-member-name">{{ memberLabel(member) }}</span>
                   <span class="calendar-info-member-email">{{ member.user_email }}</span>
                 </div>
-                <span class="calendar-info-member-role" :class="`role-${memberRoleClass(member.role)}`">
-                  {{ memberRoleLabel(member.role) }}
+                <span class="calendar-info-member-role" :class="`role-${memberStatusClass(member)}`">
+                  {{ memberStatusLabel(member) }}
                 </span>
               </li>
             </ul>
@@ -204,6 +241,15 @@
             </button>
           </template>
           <template v-else>
+            <button
+              type="button"
+              class="calendar-info-action-btn calendar-info-action-edit"
+              :disabled="!canManageCalendar"
+              :title="!canManageCalendar ? 'Only the owner can edit' : 'Edit name and color'"
+              @click="openEditFromInfo"
+            >
+              Edit
+            </button>
             <button
               type="button"
               class="calendar-info-action-btn calendar-info-action-share"
@@ -314,18 +360,36 @@
               <span class="share-user-name">{{ user.display_name || user.email }}</span>
               <span class="share-user-email">{{ user.email }}</span>
             </div>
-            <span v-if="isShareUserAlreadyMember(user)" class="share-user-badge">Shared</span>
+            <span
+              v-if="shareUserBadgeLabel(user)"
+              class="share-user-badge"
+              :class="{ 'is-pending': shareUserBadgeLabel(user) === 'Pending' }"
+            >
+              {{ shareUserBadgeLabel(user) }}
+            </span>
           </li>
         </ul>
-        <div v-if="shareCalendarMembers.length" class="share-current">
-          <p class="share-current-label">Currently shared with</p>
+        <div v-if="shareAcceptedMembers.length" class="share-current">
+          <p class="share-current-label">Members</p>
           <div class="share-current-chips">
             <span
-              v-for="member in shareCalendarMembers"
+              v-for="member in shareAcceptedMembers"
               :key="member.id"
               class="share-chip"
             >
               {{ memberLabel(member) }} · {{ memberRoleLabel(member.role) }}
+            </span>
+          </div>
+        </div>
+        <div v-if="sharePendingMembers.length" class="share-current share-current-pending">
+          <p class="share-current-label">Pending invites</p>
+          <div class="share-current-chips">
+            <span
+              v-for="member in sharePendingMembers"
+              :key="member.id"
+              class="share-chip is-pending"
+            >
+              {{ memberLabel(member) }} · {{ memberRoleLabel(member.role) }} (pending)
             </span>
           </div>
         </div>
@@ -373,6 +437,62 @@
           <button type="button" class="btn-secondary" @click="showDeleteCalendarModal = false">Cancel</button>
           <button type="button" class="btn-danger" :disabled="saving" @click="performDeleteCalendar">Delete</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Edit calendar modal -->
+    <div v-if="showEditCalendarModal" class="modal-overlay" @click.self="showEditCalendarModal = false">
+      <div class="modal">
+        <h3>Edit calendar</h3>
+        <form @submit.prevent="saveEditCalendar">
+          <div class="form-group">
+            <label>Calendar name</label>
+            <input
+              v-model="editCalendarName"
+              type="text"
+              class="input"
+              placeholder=""
+              required
+              maxlength="100"
+            />
+          </div>
+          <div class="form-group">
+            <label>Tag color</label>
+            <div class="color-palette">
+              <button
+                v-for="color in colorPalette"
+                :key="color"
+                type="button"
+                class="color-circle"
+                :class="{ active: editCalendarColor === color }"
+                :style="{ background: color }"
+                @click.prevent="editCalendarColor = color"
+                :title="color"
+              >
+                <svg
+                  v-if="editCalendarColor === color"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  stroke-width="3"
+                >
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <div></div>
+            <div class="modal-actions-right">
+              <button type="button" class="btn-secondary" @click="showEditCalendarModal = false">Cancel</button>
+              <button type="submit" class="btn-primary" :disabled="saving">
+                {{ saving ? 'Saving…' : 'Save changes' }}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -432,10 +552,34 @@
       </div>
     </div>
 
+    <!-- Month view: event quick actions (same as Qalendar flyout) -->
+    <div
+      v-if="monthFlyoutEventId"
+      class="modal-overlay month-event-flyout-overlay"
+      @click.self="closeMonthFlyout"
+    >
+      <div class="month-event-flyout-panel">
+        <EventFlyoutContent
+          standalone
+          :q-event="monthFlyoutQEvent"
+          :db-event="monthFlyoutDbEvent"
+          :saving="saving"
+          :show-rsvp-actions="showFlyoutRsvpActions(monthFlyoutEventId)"
+          :can-edit="canOpenEventFlyoutEdit(monthFlyoutEventId)"
+          :can-delete="canDeleteFlyoutEvent(monthFlyoutEventId)"
+          @accept="handleFlyoutRsvp(monthFlyoutEventId, 'accepted', closeMonthFlyout)"
+          @reject="handleFlyoutRsvp(monthFlyoutEventId, 'rejected', closeMonthFlyout)"
+          @edit="flyoutOpenEdit(monthFlyoutEventId, closeMonthFlyout)"
+          @delete="flyoutOpenDelete(monthFlyoutQEvent, closeMonthFlyout)"
+          @close="closeMonthFlyout"
+        />
+      </div>
+    </div>
+
     <!-- Event modal -->
     <div v-if="showEventModal" class="modal-overlay" @click.self="closeEventModal">
       <div class="modal event-modal">
-        <h3>{{ editingEventId ? 'Edit event' : 'New event' }}</h3>
+        <h3>{{ editingEventId ? (eventViewOnly ? 'Event details' : 'Edit event') : 'New event' }}</h3>
 
         <form @submit.prevent="saveEvent">
           <div class="form-group">
@@ -447,6 +591,7 @@
               placeholder="Event title"
               required
               maxlength="500"
+              :readonly="eventViewOnly"
             />
           </div>
 
@@ -460,7 +605,8 @@
                 class="folder-tag"
                 :class="{ active: eventForm.tagId === tag.id }"
                 :style="eventTagStyle(tag)"
-                @click="eventForm.tagId = tag.id"
+                :disabled="eventViewOnly"
+                @click="!eventViewOnly && (eventForm.tagId = tag.id)"
               >
                 {{ tag.name }}
               </button>
@@ -468,10 +614,10 @@
             <p v-else class="field-hint">Create a calendar with the Create button above.</p>
           </div>
 
-          <div class="form-group time-section">
+          <div class="form-group time-section" :class="{ 'is-readonly': eventViewOnly }">
             <div class="time-section-header">
               <label>{{ eventForm.allDay ? 'Date' : 'Time' }}</label>
-              <label class="toggle-label compact">
+              <label v-if="!eventViewOnly" class="toggle-label compact">
                 <span class="toggle-track">
                   <input
                     type="checkbox"
@@ -484,7 +630,10 @@
                 <span class="toggle-text">All day</span>
               </label>
             </div>
-            <template v-if="eventForm.allDay">
+            <template v-if="eventViewOnly">
+              <p class="event-view-time">{{ formatEventViewTime(activeEditingEvent) }}</p>
+            </template>
+            <template v-else-if="eventForm.allDay">
               <div class="form-row">
                 <div class="form-group">
                   <label class="sub-label">Start date</label>
@@ -550,12 +699,13 @@
               class="input textarea"
               rows="3"
               placeholder="Add a note"
+              :readonly="eventViewOnly"
             ></textarea>
           </div>
 
           <div class="modal-actions">
             <button
-              v-if="editingEventId"
+              v-if="editingEventId && canEditActiveEvent"
               type="button"
               class="btn-danger-outline"
               @click="confirmDeleteEvent"
@@ -564,8 +714,15 @@
             </button>
             <div v-else></div>
             <div class="modal-actions-right">
-              <button type="button" class="btn-secondary" @click="closeEventModal">Cancel</button>
-              <button type="submit" class="btn-primary" :disabled="saving || !eventForm.tagId">
+              <button type="button" class="btn-secondary" @click="closeEventModal">
+                {{ eventViewOnly ? 'Close' : 'Cancel' }}
+              </button>
+              <button
+                v-if="!eventViewOnly"
+                type="submit"
+                class="btn-primary"
+                :disabled="saving || !eventForm.tagId"
+              >
                 {{ saving ? 'Saving…' : 'Save' }}
               </button>
             </div>
@@ -577,14 +734,26 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onActivated, onUnmounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { Qalendar } from 'qalendar'
 import 'qalendar/dist/style.css'
+import CalendarScrollMonth from './CalendarScrollMonth.vue'
+import EventFlyoutContent from './EventFlyoutContent.vue'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import { supabase } from '../supabase'
-import { useCalendarEvents, snapTo15Minutes } from '../composables/useCalendarEvents'
-import { useCalendarDragCreate, buildWeekPeriod } from '../composables/useCalendarDragCreate'
+import {
+  useCalendarEvents,
+  snapTo15Minutes,
+  eventResponseStyle,
+  isPendingCalendarMember
+} from '../composables/useCalendarEvents'
+import { useCalendarDragCreate, buildWeekPeriod, getWeekStart } from '../composables/useCalendarDragCreate'
+
+/** Default week viewport: 8am–3pm. Full day remains scrollable — do not use dayBoundaries. */
+const DEFAULT_WEEK_SCROLL_START_HOUR = 8
+const DEFAULT_WEEK_SCROLL_END_HOUR = 15
 
 function pad2(n) {
   return String(n).padStart(2, '0')
@@ -716,6 +885,21 @@ function showWeekEventCreator(eventData) {
   return getWeekEventDurationMinutes(eventData) > 15 && Boolean(eventData?.with)
 }
 
+function formatEventViewTime(ev) {
+  if (!ev) return ''
+  const start = new Date(ev.start_at)
+  const end = new Date(ev.end_at)
+  if (ev.all_day) {
+    const fmt = (d) => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    return start.toDateString() === end.toDateString()
+      ? fmt(start)
+      : `${fmt(start)} – ${fmt(end)}`
+  }
+  const datePart = start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  const timeFmt = { hour: 'numeric', minute: '2-digit' }
+  return `${datePart}, ${start.toLocaleTimeString(undefined, timeFmt)} – ${end.toLocaleTimeString(undefined, timeFmt)}`
+}
+
 function formatWeekEventTime(eventData) {
   const start = parseWeekEventDateTime(eventData?.time?.start)
   const end = parseWeekEventDateTime(eventData?.time?.end)
@@ -745,10 +929,25 @@ const colorPalette = [
   '#9C89B8', '#EF476F', '#FFD166', '#06D6A0'
 ]
 
+function needsEventRsvp(dbEvent, userId, tagList) {
+  if (!dbEvent || !userId) return false
+  if (dbEvent.created_by === userId) return false
+  const tag = tagList.find((t) => t.id === dbEvent.tag_id)
+  if (!tag?.is_shared && (dbEvent.response_count || 0) <= 1) return false
+  return Boolean(dbEvent.my_response_status || (dbEvent.response_count || 0) > 1)
+}
+
+function showPendingRsvpActions(dbEvent, userId, tagList) {
+  if (!needsEventRsvp(dbEvent, userId, tagList)) return false
+  const status = dbEvent.my_response_status
+  return status === 'pending' || status == null
+}
+
 export default {
   name: 'CalendarScreen',
-  components: { Qalendar, VueDatePicker },
+  components: { Qalendar, VueDatePicker, CalendarScrollMonth, EventFlyoutContent },
   setup() {
+    const route = useRoute()
     const userId = ref(null)
     const userEmail = ref('')
     const displayName = ref('')
@@ -756,7 +955,9 @@ export default {
     const saving = ref(false)
     const activeTagId = ref(null)
     const showEventModal = ref(false)
+    const eventViewOnly = ref(false)
     const showCreateCalendarModal = ref(false)
+    const showEditCalendarModal = ref(false)
     const showDeleteCalendarModal = ref(false)
     const showDeleteEventModal = ref(false)
     const eventToDelete = ref(null)
@@ -778,10 +979,22 @@ export default {
     const tagDragIndex = ref(null)
     const tagDropIndex = ref(null)
     const calendarWrapperRef = ref(null)
+    const qalendarRef = ref(null)
     const calendarPeriod = ref(buildWeekPeriod())
+    const qalendarMode = ref('week')
+    /** After save/delete: scroll back to event time or pre-save viewport */
+    const pendingScrollAfterSave = ref(null)
+    /** User scrolled week grid manually — skip auto 8am–3pm until calendar/view change */
+    const weekScrollUserAdjusted = ref(false)
+    const scrollRestoreTimeouts = []
+    let weekScrollEl = null
+    let weekScrollListener = null
+    let programmaticScrollGuard = 0
     const editingEventId = ref(null)
     const newCalendarName = ref('')
     const newCalendarColor = ref('#6b7280')
+    const editCalendarName = ref('')
+    const editCalendarColor = ref('#6b7280')
 
     const eventForm = ref({
       title: '',
@@ -813,6 +1026,7 @@ export default {
       upsertUserProfile,
       searchUsers,
       createTag,
+      updateTag,
       deleteTag,
       updateTagOrder,
       getMembers,
@@ -825,7 +1039,8 @@ export default {
       toQalendarEvents,
       buildColorSchemes,
       fromQalendarDrag,
-      subscribeToEvents
+      subscribeToEvents,
+      respondToEvent
     } = useCalendarEvents()
 
     const activeCalendar = computed(() =>
@@ -844,10 +1059,7 @@ export default {
       return Boolean(cal && cal.owner_id === userId.value)
     })
 
-    const isInvitedCalendar = computed(() => {
-      const cal = activeCalendar.value
-      return Boolean(cal && cal.owner_id !== userId.value)
-    })
+    const isInvitedCalendar = computed(() => Boolean(activeCalendar.value?.is_shared))
 
     const calendarInfoTypeLabel = computed(() =>
       isInvitedCalendar.value ? 'Shared with you' : 'Your calendar'
@@ -863,11 +1075,26 @@ export default {
     const currentUserCalendarRole = computed(() => {
       const email = (userEmail.value || '').toLowerCase()
       const me = infoCalendarMembers.value.find(m =>
-        m.user_id === userId.value ||
-        (m.user_email || '').toLowerCase() === email
+        !isPendingCalendarMember(m) &&
+        (m.user_id === userId.value ||
+          (m.user_email || '').toLowerCase() === email)
       )
       return memberRoleLabel(me?.role || (canManageCalendar.value ? 'owner' : 'member'))
     })
+
+    const infoMemberCountLabel = computed(() => {
+      const pending = infoCalendarMembers.value.filter(isPendingCalendarMember).length
+      if (!pending) return String(infoCalendarMembers.value.length)
+      return `${infoCalendarMembers.value.length} (${pending} pending)`
+    })
+
+    const shareAcceptedMembers = computed(() =>
+      shareCalendarMembers.value.filter(m => m.role !== 'owner' && !isPendingCalendarMember(m))
+    )
+
+    const sharePendingMembers = computed(() =>
+      shareCalendarMembers.value.filter(isPendingCalendarMember)
+    )
 
     const calendarCreatedLabel = computed(() => {
       const created = activeCalendar.value?.created_at
@@ -883,8 +1110,8 @@ export default {
       infoCalendarMembers.value.filter(m => m.role !== 'owner').length
     )
 
-    const isPersonalTag = (tag) => tag.owner_id === userId.value
-    const isSharedTag = (tag) => tag.owner_id !== userId.value
+    const isPersonalTag = (tag) => !tag?.is_shared
+    const isSharedTag = (tag) => Boolean(tag?.is_shared)
 
     const canEditTag = (tagId) => {
       if (!tagId) return false
@@ -904,11 +1131,42 @@ export default {
 
     const shareRoleToDbRole = (shareRole) => (shareRole === 'admin' ? 'editor' : 'viewer')
 
+    const tagColorTint = (hex, alpha = 0.16) => {
+      const color = hex || '#667eea'
+      if (!color.startsWith('#')) return `rgba(102, 126, 234, ${alpha})`
+      let h = color.slice(1)
+      if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+      const r = parseInt(h.slice(0, 2), 16)
+      const g = parseInt(h.slice(2, 4), 16)
+      const b = parseInt(h.slice(4, 6), 16)
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    }
+
     const calendarTagStyle = (tag) => {
+      const color = tag.color || '#667eea'
+      const isActive = activeTagId.value === tag.id
+
       if (isSharedTag(tag)) {
-        return { color: tag.color, borderColor: tag.color }
+        return {
+          '--cal-color': color,
+          color,
+          borderColor: color,
+          borderStyle: 'dashed',
+          borderWidth: isActive ? '2px' : '1px',
+          background: `linear-gradient(135deg, ${tagColorTint(color, 0.1)} 0%, ${tagColorTint(color, 0.26)} 100%)`,
+          boxShadow: isActive ? `0 0 0 1px ${tagColorTint(color, 0.45)}` : 'none'
+        }
       }
-      return { color: tag.color, borderColor: tag.color }
+
+      return {
+        '--cal-color': color,
+        color,
+        borderColor: color,
+        borderStyle: 'solid',
+        borderWidth: isActive ? '2px' : '1px',
+        backgroundColor: tagColorTint(color, 0.22),
+        boxShadow: 'none'
+      }
     }
 
     const filteredShareUsers = computed(() => {
@@ -945,14 +1203,71 @@ export default {
       return events.value.filter(e => e.tag_id === activeTagId.value)
     })
 
-    const qalendarEvents = computed(() => toQalendarEvents(filteredEvents.value))
+    const qalendarEvents = computed(() =>
+      toQalendarEvents(filteredEvents.value, { userId: userId.value })
+    )
+
+    const activeEditingEvent = computed(() =>
+      events.value.find((e) => e.id === editingEventId.value) || null
+    )
+
+    const canEditActiveEvent = computed(() => {
+      const ev = activeEditingEvent.value
+      return ev ? canEditTag(ev.tag_id) : false
+    })
+
+    const monthFlyoutEventId = ref(null)
+
+    const monthFlyoutDbEvent = computed(() =>
+      monthFlyoutEventId.value
+        ? events.value.find((e) => e.id === monthFlyoutEventId.value) || null
+        : null
+    )
+
+    const monthFlyoutQEvent = computed(() =>
+      monthFlyoutEventId.value
+        ? qalendarEvents.value.find((e) => e.id === monthFlyoutEventId.value) || null
+        : null
+    )
+
+    const dbEventById = (eventId) =>
+      eventId ? events.value.find((e) => e.id === eventId) || null : null
+
+    const showFlyoutRsvpActions = (eventId) => {
+      const db = dbEventById(eventId)
+      return showPendingRsvpActions(db, userId.value, tags.value)
+    }
+
+    const canOpenEventFlyoutEdit = (eventId) => {
+      const db = dbEventById(eventId)
+      if (!db) return false
+      return Boolean(tags.value.find((t) => t.id === db.tag_id))
+    }
+
+    const canDeleteFlyoutEvent = (eventId) => {
+      const db = dbEventById(eventId)
+      return db ? canEditTag(db.tag_id) : false
+    }
+
+    const closeMonthFlyout = () => {
+      monthFlyoutEventId.value = null
+    }
+
+    const onSelectMonthEvent = (payload) => {
+      const eventId = resolveQalendarEventId(payload)
+      if (!eventId) return
+      monthFlyoutEventId.value = eventId
+    }
 
     const qalendarConfig = computed(() => {
       const visibleTags = activeTagId.value
         ? tags.value.filter(t => t.id === activeTagId.value)
         : tags.value
       return {
-        week: { startsOn: 'sunday', nDays: 7, scrollToHour: 8 },
+        week: {
+          startsOn: 'sunday',
+          nDays: 7
+        },
         defaultMode: 'week',
         locale: 'en-US',
         style: {
@@ -960,25 +1275,191 @@ export default {
           colorSchemes: buildColorSchemes(visibleTags)
         },
         isSilent: true,
-        showCurrentTime: true
+        showCurrentTime: true,
+        eventDialog: { isCustom: true }
       }
     })
 
     const weekEventBlockStyle = (eventData) => {
       const scheme = qalendarConfig.value.style?.colorSchemes?.[eventData?.colorScheme]
-      return {
-        backgroundColor: scheme?.backgroundColor || '#667eea',
-        color: scheme?.color || '#fff'
-      }
+      const bg = scheme?.backgroundColor || eventData?.tagColor || '#667eea'
+      return eventResponseStyle(bg, eventData?.responseStatus)
     }
 
     const allTagIds = computed(() => tags.value.map(t => t.id))
 
-    const refreshEvents = async () => {
+    const getWeekScrollEl = () =>
+      calendarWrapperRef.value?.querySelector('.calendar-week__wrapper') ?? null
+
+    const captureWeekScrollTop = () => {
+      const el = getWeekScrollEl()
+      return el ? el.scrollTop : null
+    }
+
+    /** Default viewport (8am–3pm). Not used after save/drag or once user scrolls. */
+    const scrollWeekToDefaultViewport = () => {
+      const el = getWeekScrollEl()
+      if (!el) return false
+      const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
+      if (maxScroll <= 0) return false
+      const startRatio = DEFAULT_WEEK_SCROLL_START_HOUR / 24
+      const endRatio = DEFAULT_WEEK_SCROLL_END_HOUR / 24
+      const rangePx = (endRatio - startRatio) * el.scrollHeight
+      let scrollTop
+      if (el.clientHeight >= rangePx) {
+        scrollTop = startRatio * el.scrollHeight - (el.clientHeight - rangePx) / 2
+      } else {
+        scrollTop = startRatio * el.scrollHeight - 10
+      }
+      return runProgrammaticWeekScroll(() => {
+        el.scrollTop = Math.min(maxScroll, Math.max(0, scrollTop))
+        return true
+      })
+    }
+
+    const applyDefaultWeekViewportIfAllowed = () => {
+      if (qalendarMode.value !== 'week') return
+      if (weekScrollUserAdjusted.value) return
+      if (pendingScrollAfterSave.value) return
+      ensureWeekScrollTracking()
+      scrollWeekToDefaultViewport()
+    }
+
+    const scheduleDefaultWeekViewport = () => {
+      if (qalendarMode.value !== 'week') return
+      weekScrollUserAdjusted.value = false
+      const run = () => applyDefaultWeekViewportIfAllowed()
+      run()
+      nextTick(run)
+      requestAnimationFrame(() => {
+        run()
+        setTimeout(run, 150)
+        setTimeout(run, 400)
+      })
+    }
+
+    const detachWeekScrollListener = () => {
+      if (weekScrollEl && weekScrollListener) {
+        weekScrollEl.removeEventListener('scroll', weekScrollListener, { passive: true })
+      }
+      weekScrollEl = null
+      weekScrollListener = null
+    }
+
+    const ensureWeekScrollTracking = () => {
+      const el = getWeekScrollEl()
+      if (!el || el === weekScrollEl) return
+      detachWeekScrollListener()
+      weekScrollListener = () => {
+        if (programmaticScrollGuard > 0) return
+        weekScrollUserAdjusted.value = true
+        if (pendingScrollAfterSave.value) clearScrollAfterSavePending()
+      }
+      weekScrollEl = el
+      el.addEventListener('scroll', weekScrollListener, { passive: true })
+    }
+
+    const clearScrollAfterSavePending = () => {
+      pendingScrollAfterSave.value = null
+      for (const id of scrollRestoreTimeouts) clearTimeout(id)
+      scrollRestoreTimeouts.length = 0
+    }
+
+    const runProgrammaticWeekScroll = (fn) => {
+      programmaticScrollGuard++
+      try {
+        return fn()
+      } finally {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            programmaticScrollGuard--
+          })
+        })
+      }
+    }
+
+    /** Scroll week grid so event start time is in view (survives Qalendar remount). */
+    const scrollWeekToDateTime = (startAt) => {
+      if (!startAt) return false
+      const el = getWeekScrollEl()
+      if (!el) return false
+      const d = new Date(startAt)
+      if (Number.isNaN(d.getTime())) return false
+      const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
+      if (maxScroll <= 0) return false
+      const minutes = d.getHours() * 60 + d.getMinutes()
+      const ratio = minutes / (24 * 60)
+      return runProgrammaticWeekScroll(() => {
+        el.scrollTop = Math.min(maxScroll, Math.max(0, ratio * el.scrollHeight - 56))
+        return true
+      })
+    }
+
+    const restoreWeekScrollTop = (scrollTop) => {
+      if (scrollTop == null) return
+      const el = getWeekScrollEl()
+      if (!el) return
+      runProgrammaticWeekScroll(() => {
+        el.scrollTop = scrollTop
+      })
+    }
+
+    const applyPendingScrollAfterSave = () => {
+      const p = pendingScrollAfterSave.value
+      if (!p) return
+      ensureWeekScrollTracking()
+      if (!p.allDay && p.startAt && scrollWeekToDateTime(p.startAt)) return
+      if (p.fallbackTop != null) restoreWeekScrollTop(p.fallbackTop)
+    }
+
+    const scheduleScrollAfterSave = (startAt, allDay, fallbackTop) => {
+      for (const id of scrollRestoreTimeouts) clearTimeout(id)
+      scrollRestoreTimeouts.length = 0
+      pendingScrollAfterSave.value = { startAt, allDay, fallbackTop }
+      ensureWeekScrollTracking()
+      const run = () => applyPendingScrollAfterSave()
+      run()
+      nextTick(run)
+      requestAnimationFrame(() => {
+        run()
+        requestAnimationFrame(() => {
+          for (const ms of [50, 150, 300, 500, 800, 1200, 1800]) {
+            scrollRestoreTimeouts.push(setTimeout(run, ms))
+          }
+          scrollRestoreTimeouts.push(setTimeout(clearScrollAfterSavePending, 2000))
+        })
+      })
+    }
+
+    const preserveWeekScrollFor = async (fn, { startAt = null, allDay = false } = {}) => {
+      const fallbackTop = captureWeekScrollTop()
+      pendingScrollAfterSave.value = { startAt, allDay, fallbackTop }
+      applyPendingScrollAfterSave()
+      try {
+        await fn()
+      } finally {
+        scheduleScrollAfterSave(startAt, allDay, fallbackTop)
+      }
+    }
+
+    /** Refetch events. preserveScroll keeps week grid position after Qalendar re-renders. */
+    const refreshEvents = async ({ preserveScroll = false, silent = false } = {}) => {
+      const pending = pendingScrollAfterSave.value
+      if (pending) {
+        preserveScroll = false
+      }
+      const scrollTop = preserveScroll ? captureWeekScrollTop() : null
       if (allTagIds.value.length) {
-        await getEvents(allTagIds.value)
+        await getEvents(allTagIds.value, userId.value, userEmail.value, {
+          silent: preserveScroll || silent
+        })
       } else {
         events.value = []
+      }
+      if (pending) {
+        applyPendingScrollAfterSave()
+      } else if (preserveScroll && scrollTop != null) {
+        restoreWeekScrollTop(scrollTop)
       }
     }
 
@@ -996,7 +1477,11 @@ export default {
         user.user_metadata?.display_name || user.email?.split('@')[0] || ''
       )
       await getTags(user.id, user.email)
-      if (tags.value.length) {
+      const queryTag = route.query.tag
+      if (queryTag && tags.value.some((t) => t.id === queryTag)) {
+        activeTagId.value = queryTag
+        eventForm.value.tagId = queryTag
+      } else if (tags.value.length) {
         eventForm.value.tagId = tags.value[0].id
       }
       await refreshEvents()
@@ -1025,14 +1510,79 @@ export default {
       }
     })
 
+    const weekPeriodKey = (period) => {
+      const start = getWeekStart(period?.start ?? period?.selectedDate)
+      if (!start) return ''
+      return `${start.getFullYear()}-${pad2(start.getMonth() + 1)}-${pad2(start.getDate())}`
+    }
+
+    let lastWeekPeriodKey = weekPeriodKey(calendarPeriod.value)
+
     const onPeriodUpdated = (period) => {
+      if (!period?.start) return
+      const nextKey = weekPeriodKey(period)
+      const weekChanged = lastWeekPeriodKey !== '' && nextKey !== lastWeekPeriodKey
+      lastWeekPeriodKey = nextKey
+      calendarPeriod.value = {
+        start: period.start,
+        end: period.end,
+        selectedDate: period.selectedDate ?? period.start
+      }
+      if (weekChanged && qalendarMode.value === 'week') {
+        scheduleDefaultWeekViewport()
+      }
+    }
+
+    /** Qalendar header keeps its own currentPeriod copy — sync it when scroll month changes. */
+    const syncQalendarHeaderPeriod = (period) => {
+      const q = qalendarRef.value
+      if (!q || !period?.start) return
+      const fullPeriod = {
+        start: period.start,
+        end: period.end,
+        selectedDate: period.selectedDate ?? period.start
+      }
+      q.period = fullPeriod
+      const header = q.$refs?.appHeader
+      if (header) {
+        header.currentPeriod = fullPeriod
+        const datePicker = header.$refs?.periodSelect
+        if (datePicker) {
+          datePicker.datePickerCurrentDate = fullPeriod.selectedDate
+          datePicker.selectedDate = fullPeriod.selectedDate
+          datePicker.setWeek?.(fullPeriod.selectedDate, true)
+        }
+      }
+    }
+
+    const onScrollMonthPeriodUpdated = (period) => {
       if (!period?.start) return
       calendarPeriod.value = {
         start: period.start,
         end: period.end,
         selectedDate: period.selectedDate ?? period.start
       }
+      if (qalendarMode.value === 'month') {
+        syncQalendarHeaderPeriod(calendarPeriod.value)
+      }
     }
+
+    const onQalendarModeUpdated = ({ mode }) => {
+      if (mode) qalendarMode.value = mode
+    }
+
+    watch(qalendarMode, async (mode) => {
+      if (mode === 'month') {
+        await nextTick()
+        syncQalendarHeaderPeriod(calendarPeriod.value)
+        return
+      }
+      if (mode === 'week') {
+        scheduleDefaultWeekViewport()
+        await nextTick()
+        ensureWeekScrollTracking()
+      }
+    })
 
     watch(loading, async (isLoading) => {
       if (!isLoading) {
@@ -1040,15 +1590,52 @@ export default {
       }
     })
 
+    watch(
+      qalendarEvents,
+      () => {
+        if (pendingScrollAfterSave.value) {
+          applyPendingScrollAfterSave()
+          return
+        }
+        if (qalendarMode.value !== 'week' || weekScrollUserAdjusted.value) return
+        const el = getWeekScrollEl()
+        if (el && el.scrollTop > 24) return
+        applyDefaultWeekViewportIfAllowed()
+      },
+      { flush: 'post' }
+    )
+
     let unsubscribe = null
     onMounted(async () => {
       await init()
-      unsubscribe = subscribeToEvents(refreshEvents)
+      unsubscribe = subscribeToEvents(() => {
+        if (pendingScrollAfterSave.value) {
+          applyPendingScrollAfterSave()
+          return
+        }
+        refreshEvents({ preserveScroll: true, silent: true })
+      })
       await ensureDragCreate()
+      await nextTick()
+      scheduleDefaultWeekViewport()
+      ensureWeekScrollTracking()
+    })
+
+    onActivated(async () => {
+      if (!userId.value || !userEmail.value) return
+      await getTags(userId.value, userEmail.value)
+      const queryTag = route.query.tag
+      if (queryTag && tags.value.some((t) => t.id === queryTag)) {
+        activeTagId.value = queryTag
+        eventForm.value.tagId = queryTag
+      }
+      await refreshEvents({ preserveScroll: true, silent: true })
     })
     onUnmounted(() => {
       if (unsubscribe) unsubscribe()
       detachDragCreate()
+      clearScrollAfterSavePending()
+      detachWeekScrollListener()
     })
 
     const resetEventForm = (startHint, endHint, allDayHint = false) => {
@@ -1157,9 +1744,38 @@ export default {
           userEmail.value,
           [...tags.value.map(t => t.id)]
         )
-        await refreshEvents()
+        await refreshEvents({ preserveScroll: true, silent: true })
       } catch (err) {
         loadError.value = err.message || 'Failed to create calendar'
+      } finally {
+        saving.value = false
+      }
+    }
+
+    const openEditCalendarModal = () => {
+      const cal = activeCalendar.value
+      if (!cal || !canManageCalendar.value) return
+      editCalendarName.value = cal.name || ''
+      editCalendarColor.value = cal.color || '#6b7280'
+      showEditCalendarModal.value = true
+    }
+
+    const saveEditCalendar = async () => {
+      const cal = activeCalendar.value
+      if (!cal || !canManageCalendar.value) return
+      const name = editCalendarName.value.trim()
+      if (!name) return
+      saving.value = true
+      loadError.value = ''
+      try {
+        await updateTag(cal.id, {
+          name,
+          color: editCalendarColor.value
+        })
+        showEditCalendarModal.value = false
+        await refreshEvents({ preserveScroll: true, silent: true })
+      } catch (err) {
+        loadError.value = err.message || 'Failed to update calendar'
       } finally {
         saving.value = false
       }
@@ -1176,6 +1792,7 @@ export default {
         return
       }
       editingEventId.value = null
+      eventViewOnly.value = false
       resetEventForm(startHint, endHint, allDay)
       showEventModal.value = true
     }
@@ -1184,11 +1801,14 @@ export default {
       const eventId = resolveQalendarEventId(payload)
       const db = events.value.find(e => e.id === eventId)
       if (!db) return
-      if (!canEditTag(db.tag_id)) {
+      const tag = tags.value.find((t) => t.id === db.tag_id)
+      const isMember = Boolean(tag)
+      if (!isMember) {
         loadError.value = calendarEditDeniedMessage
         return
       }
       editingEventId.value = db.id
+      eventViewOnly.value = !canEditTag(db.tag_id)
       eventForm.value = {
         title: db.title,
         tagId: db.tag_id,
@@ -1202,6 +1822,7 @@ export default {
     const closeEventModal = () => {
       showEventModal.value = false
       editingEventId.value = null
+      eventViewOnly.value = false
     }
 
     const saveEvent = async () => {
@@ -1216,35 +1837,37 @@ export default {
       saving.value = true
       loadError.value = ''
       try {
-        const tagId = eventForm.value.tagId
         const { startAt, endAt } = eventTimesFromForm(eventForm.value)
-        const payload = {
-          tagId,
-          title: eventForm.value.title,
-          description: eventForm.value.description,
-          location: '',
-          startAt,
-          endAt,
-          allDay: eventForm.value.allDay
-        }
+        const allDay = eventForm.value.allDay
+        await preserveWeekScrollFor(async () => {
+          const tagId = eventForm.value.tagId
+          const payload = {
+            tagId,
+            title: eventForm.value.title,
+            description: eventForm.value.description,
+            location: '',
+            startAt,
+            endAt,
+            allDay
+          }
 
-        if (editingEventId.value) {
-          await updateEvent(editingEventId.value, {
-            tag_id: payload.tagId,
-            title: payload.title,
-            description: payload.description,
-            location: payload.location,
-            start_at: payload.startAt,
-            end_at: payload.endAt,
-            all_day: payload.allDay
-          })
-        } else {
-          await createEvent(userId.value, userEmail.value, displayName.value, payload)
-          activeTagId.value = tagId
-        }
+          if (editingEventId.value) {
+            await updateEvent(editingEventId.value, {
+              tag_id: payload.tagId,
+              title: payload.title,
+              description: payload.description,
+              location: payload.location,
+              start_at: payload.startAt,
+              end_at: payload.endAt,
+              all_day: payload.allDay
+            })
+          } else {
+            await createEvent(userId.value, userEmail.value, displayName.value, payload)
+            activeTagId.value = tagId
+          }
 
-        closeEventModal()
-        await refreshEvents()
+          closeEventModal()
+        }, { startAt, allDay })
       } catch (err) {
         loadError.value = err.message || 'Failed to save event'
       } finally {
@@ -1286,11 +1909,12 @@ export default {
       saving.value = true
       loadError.value = ''
       try {
-        await deleteEvent(target.id)
-        const wasEditing = editingEventId.value === target.id
-        cancelDeleteEvent()
-        if (wasEditing) closeEventModal()
-        await refreshEvents()
+        await preserveWeekScrollFor(async () => {
+          await deleteEvent(target.id)
+          const wasEditing = editingEventId.value === target.id
+          cancelDeleteEvent()
+          if (wasEditing) closeEventModal()
+        }, { allDay: true })
       } catch (err) {
         loadError.value = err.message || 'Failed to delete event'
       } finally {
@@ -1312,21 +1936,59 @@ export default {
       openDeleteEventModal(eventId, title)
     }
 
+    const flyoutOpenEdit = (eventId, closeFn) => {
+      closeFn?.()
+      closeMonthFlyout()
+      onEditEvent(eventId)
+    }
+
+    const flyoutOpenDelete = (qEventOrId, closeFn) => {
+      closeFn?.()
+      closeMonthFlyout()
+      onDeleteEvent(qEventOrId)
+    }
+
+    const handleFlyoutRsvp = async (eventId, status, closeFn) => {
+      const ev = dbEventById(eventId)
+      if (!ev?.id || !userId.value) return
+      saving.value = true
+      loadError.value = ''
+      try {
+        await respondToEvent(ev.id, userId.value, userEmail.value, status)
+        closeFn?.()
+        closeMonthFlyout()
+      } catch (err) {
+        loadError.value = err.message || 'Failed to update response'
+      } finally {
+        saving.value = false
+      }
+    }
+
     const onEventDragged = async (qEvent) => {
       const eventId = resolveQalendarEventId(qEvent)
       if (!eventId) return
       const db = events.value.find(e => e.id === eventId)
+      const dragUpdates = fromQalendarDrag(qEvent)
+      const scrollTarget = {
+        startAt: dragUpdates.start_at,
+        allDay: !!dragUpdates.all_day
+      }
       if (db && !canEditTag(db.tag_id)) {
         loadError.value = calendarEditDeniedMessage
-        await refreshEvents()
+        await preserveWeekScrollFor(async () => {
+          await refreshEvents({ preserveScroll: true, silent: true })
+        }, scrollTarget)
         return
       }
       try {
-        await updateEvent(eventId, fromQalendarDrag(qEvent))
-        await refreshEvents()
+        await preserveWeekScrollFor(async () => {
+          await updateEvent(eventId, dragUpdates)
+        }, scrollTarget)
       } catch (err) {
         loadError.value = err.message
-        await refreshEvents()
+        await preserveWeekScrollFor(async () => {
+          await refreshEvents({ preserveScroll: true, silent: true })
+        }, { startAt: db?.start_at, allDay: !!db?.all_day })
       }
     }
 
@@ -1359,6 +2021,7 @@ export default {
 
     watch(activeTagId, () => {
       if (showCalendarInfoPanel.value) closeCalendarInfoPanel()
+      scheduleDefaultWeekViewport()
     })
 
     const isShareUserSelected = (user) => shareSelectedUserIds.value.includes(user.id)
@@ -1394,6 +2057,28 @@ export default {
       if (role === 'editor') return 'admin'
       if (role === 'viewer') return 'member'
       return 'member'
+    }
+
+    const memberStatusLabel = (member) => {
+      if (member?.role === 'owner') return 'Owner'
+      if (isPendingCalendarMember(member)) return 'Pending'
+      return memberRoleLabel(member.role)
+    }
+
+    const memberStatusClass = (member) => {
+      if (member?.role === 'owner') return 'owner'
+      if (isPendingCalendarMember(member)) return 'pending'
+      return memberRoleClass(member.role)
+    }
+
+    const shareUserBadgeLabel = (user) => {
+      const email = (user.email || '').toLowerCase()
+      if (!email) return null
+      const member = shareCalendarMembers.value.find(
+        (m) => m.role !== 'owner' && (m.user_email || '').toLowerCase() === email
+      )
+      if (!member) return null
+      return isPendingCalendarMember(member) ? 'Pending' : 'Shared'
     }
 
     const calendarEditDeniedMessage = 'You do not have permission to edit events on this calendar.'
@@ -1435,6 +2120,11 @@ export default {
       infoSelectedMemberIds.value = []
       loadError.value = ''
       await refreshInfoMembers()
+    }
+
+    const openEditFromInfo = () => {
+      if (!canManageCalendar.value) return
+      openEditCalendarModal()
     }
 
     const openShareFromInfo = () => {
@@ -1599,6 +2289,7 @@ export default {
       tags,
       activeTagId,
       calendarWrapperRef,
+      qalendarRef,
       dragPreview,
       activeCalendar,
       canDeleteCalendar,
@@ -1619,6 +2310,7 @@ export default {
       membersToRemove,
       openCalendarInfoPanel,
       closeCalendarInfoPanel,
+      openEditFromInfo,
       openShareFromInfo,
       openDeleteFromInfo,
       startInfoRemoveMode,
@@ -1629,7 +2321,14 @@ export default {
       canRemoveMember,
       memberRoleLabel,
       memberRoleClass,
+      memberStatusLabel,
+      memberStatusClass,
+      infoMemberCountLabel,
+      shareAcceptedMembers,
+      sharePendingMembers,
+      shareUserBadgeLabel,
       memberInitial,
+      isPendingCalendarMember,
       canEditCalendarEvents,
       isPersonalTag,
       isSharedTag,
@@ -1646,14 +2345,39 @@ export default {
       shareCalendarMembers,
       shareSelectedEmails,
       calendarDeleteEventCount,
+      qalendarMode,
       qalendarEvents,
       qalendarConfig,
+      calendarPeriod,
+      onScrollMonthPeriodUpdated,
+      onQalendarModeUpdated,
       formatWeekEventTime,
       showWeekEventTime,
       showWeekEventCreator,
       weekEventBlockStyle,
       showEventModal,
+      eventViewOnly,
+      activeEditingEvent,
+      canEditActiveEvent,
+      monthFlyoutEventId,
+      monthFlyoutQEvent,
+      monthFlyoutDbEvent,
+      dbEventById,
+      showFlyoutRsvpActions,
+      canOpenEventFlyoutEdit,
+      canDeleteFlyoutEvent,
+      closeMonthFlyout,
+      onSelectMonthEvent,
+      flyoutOpenEdit,
+      flyoutOpenDelete,
+      handleFlyoutRsvp,
+      formatEventViewTime,
       showCreateCalendarModal,
+      showEditCalendarModal,
+      editCalendarName,
+      editCalendarColor,
+      openEditCalendarModal,
+      saveEditCalendar,
       showDeleteCalendarModal,
       showDeleteEventModal,
       eventToDelete,
@@ -1785,31 +2509,86 @@ export default {
   min-height: 0;
 }
 
-.calendar-tag-list .folder-tag {
+.calendar-tag-list .calendar-all-btn {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 5px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 5px 10px;
+  border-radius: 14px;
+  border: 1px solid #e9ecef;
+  background: #f8f9fa;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  color: #495057;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-tag-list .calendar-all-btn.active {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+  box-shadow: none;
+}
+
+.calendar-tag-list .folder-tag.calendar-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
   box-sizing: border-box;
   width: 100%;
   min-height: 34px;
-  max-height: 34px;
+  max-height: none;
   padding: 6px 10px;
-  border-radius: 16px;
-  border: 1px solid transparent;
+  border-radius: 14px;
   text-align: left;
   text-transform: none;
   letter-spacing: normal;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
+  white-space: normal;
+}
+
+.calendar-tag-list .folder-tag.calendar-tag:not(.tag-shared) {
+  flex-direction: row;
+  align-items: center;
+  max-height: 34px;
   white-space: nowrap;
+}
+
+.calendar-tag-list .folder-tag.calendar-tag.tag-shared {
+  min-height: 44px;
+  padding: 5px 10px 6px;
 }
 
 .calendar-tag-list .folder-tag.active {
   box-shadow: none;
   border-width: 2px;
   padding: 5px 9px;
+}
+
+.calendar-tag-list .folder-tag.calendar-tag.tag-shared.active {
+  padding: 4px 9px 5px;
+}
+
+.calendar-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
 }
 
 .calendar-tag-label {
@@ -2209,6 +2988,15 @@ export default {
   color: #4b5563;
 }
 
+.calendar-info-member-role.role-pending {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.calendar-info-member.is-pending-invite {
+  opacity: 0.92;
+}
+
 .calendar-info-footer {
   display: flex;
   gap: 10px;
@@ -2232,6 +3020,17 @@ export default {
 .calendar-info-action-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.calendar-info-action-edit {
+  background: #fff;
+  color: #059669;
+  border-color: #10b981;
+}
+
+.calendar-info-action-edit:hover:not(:disabled) {
+  background: #10b981;
+  color: #fff;
 }
 
 .calendar-info-action-share {
@@ -2292,19 +3091,30 @@ export default {
   cursor: grabbing;
 }
 
-.calendar-tag.tag-personal {
-  background: #f0f0f0;
-}
-
-.calendar-tag.tag-shared {
-  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
-  border-style: dashed;
-  font-style: normal;
-}
-
-.calendar-tag.tag-shared .tag-shared-icon {
+.calendar-tag-list .folder-tag.calendar-tag.tag-shared .tag-shared-icon {
   display: inline-flex;
-  opacity: 0.75;
+  flex-shrink: 0;
+  opacity: 0.9;
+  color: var(--cal-color, #667eea);
+}
+
+.calendar-tag.tag-shared .calendar-kind-badge {
+  color: var(--cal-color, #667eea);
+  background: color-mix(in srgb, var(--cal-color, #667eea) 18%, white);
+  border: 1px solid color-mix(in srgb, var(--cal-color, #667eea) 38%, transparent);
+}
+
+.calendar-kind-badge {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.3;
 }
 
 .calendar-tag.tag-dragging {
@@ -2312,7 +3122,7 @@ export default {
 }
 
 .calendar-tag.tag-drag-over {
-  box-shadow: 0 0 0 2px #4f46e5;
+  box-shadow: 0 0 0 2px var(--cal-color, #667eea);
 }
 
 .share-modal-hint {
@@ -2462,6 +3272,11 @@ export default {
   border-radius: 999px;
 }
 
+.share-user-badge.is-pending {
+  color: #c2410c;
+  background: #fff7ed;
+}
+
 .share-current {
   margin-bottom: 16px;
 }
@@ -2487,6 +3302,16 @@ export default {
   background: #f1f3f5;
   border-radius: 999px;
   color: #495057;
+}
+
+.share-chip.is-pending {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px dashed #fdba74;
+}
+
+.share-current-pending .share-current-label {
+  color: #c2410c;
 }
 
 .btn-danger {
@@ -2522,8 +3347,8 @@ export default {
   justify-content: space-between;
 }
 
-/* Matches folder-tag / card-badge from Library & Home */
-.folder-tag {
+/* Event modal tag picker only — not sidebar calendar list */
+.folder-tag:not(.calendar-tag):not(.calendar-all-btn) {
   display: inline-block;
   padding: 6px 12px;
   background: #f0f0f0;
@@ -2540,11 +3365,11 @@ export default {
   font-family: inherit;
 }
 
-.folder-tag:hover {
+.folder-tag:not(.calendar-tag):not(.calendar-all-btn):hover {
   opacity: 0.85;
 }
 
-.folder-tag.active {
+.folder-tag:not(.calendar-tag):not(.calendar-all-btn).active {
   box-shadow: 0 0 0 2px currentColor;
 }
 
@@ -2558,6 +3383,34 @@ export default {
   overflow: hidden;
   padding: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.calendar-wrapper.is-scroll-month {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.calendar-wrapper.is-scroll-month :deep(.calendar-root-wrapper) {
+  flex: 0 0 auto;
+  height: auto;
+  width: 100%;
+}
+
+.calendar-wrapper.is-scroll-month :deep(.calendar-month) {
+  display: none !important;
+}
+
+.calendar-wrapper.is-scroll-month :deep(.calendar-root) {
+  display: flex;
+  flex-direction: column;
+  height: auto !important;
+  flex: 0 0 auto;
+}
+
+.calendar-wrapper.is-scroll-month :deep(.calendar-header) {
+  flex-shrink: 0;
+  background: #fff;
 }
 
 .calendar-wrapper :deep(.vine-week-event) {
@@ -2574,6 +3427,7 @@ export default {
   box-sizing: border-box;
   line-height: 1.15;
   cursor: pointer;
+  border-style: solid;
 }
 
 .calendar-wrapper :deep(.vine-week-event__title) {
@@ -2696,6 +3550,47 @@ export default {
 
 .event-modal {
   max-width: 480px;
+}
+
+.month-event-flyout-overlay {
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+
+.month-event-flyout-panel {
+  width: calc(100% - 48px);
+  max-width: 320px;
+}
+
+/* Qalendar wraps custom eventDialog in .event-flyout — ensure shell + inner layout */
+.calendar-wrapper :deep(.event-flyout.is-visible) {
+  min-width: 260px;
+  max-width: min(320px, 98vw);
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.09),
+    0 6px 12px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.calendar-wrapper :deep(.event-flyout .vine-event-callout) {
+  width: 100%;
+}
+
+.event-view-time {
+  margin: 0;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.time-section.is-readonly .event-date-picker {
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 .event-tag-picker {
@@ -2965,7 +3860,8 @@ export default {
     flex-wrap: wrap;
   }
 
-  .calendar-tag-list .folder-tag {
+  .calendar-tag-list .folder-tag,
+  .calendar-tag-list .calendar-all-btn {
     width: 100%;
     max-width: none;
   }

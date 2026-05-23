@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { supabase } from '../supabase'
+import { useNotifications } from './useNotifications'
 
 const TAG_COLORS = [
   '#667eea', '#764ba2', '#e74c3c', '#27ae60',
@@ -80,6 +81,64 @@ function userMatchesQuery(user, query) {
   return name.includes(q) || email.includes(q)
 }
 
+/** Visual styles for RSVP state on calendar blocks */
+export function memberInviteStatus(member) {
+  const status = member?.invite_status
+  if (status === 'pending' || status === 'accepted' || status === 'rejected') return status
+  return 'accepted'
+}
+
+export function isPendingCalendarMember(member) {
+  return memberInviteStatus(member) === 'pending'
+}
+
+function sortMembersForDisplay(rows) {
+  return [...rows].sort((a, b) => {
+    const rank = (m) => {
+      if (m.role === 'owner') return 0
+      if (isPendingCalendarMember(m)) return 2
+      return 1
+    }
+    const ra = rank(a)
+    const rb = rank(b)
+    if (ra !== rb) return ra - rb
+    return (a.user_email || '').localeCompare(b.user_email || '')
+  })
+}
+
+export function eventResponseStyle(baseColor, status) {
+  const bg = baseColor || '#667eea'
+  if (status === 'rejected') {
+    return {
+      backgroundColor: bg,
+      color: '#fff',
+      opacity: 0.38,
+      border: '1px solid rgba(0, 0, 0, 0.08)',
+      boxShadow: 'none'
+    }
+  }
+  if (status === 'pending') {
+    return {
+      backgroundColor: bg,
+      color: '#fff',
+      opacity: 0.78,
+      border: '2px dashed rgba(255, 255, 255, 0.9)',
+      boxShadow: 'none'
+    }
+  }
+  return {
+    backgroundColor: bg,
+    color: '#fff',
+    opacity: 1,
+    border: 'none',
+    boxShadow: 'none'
+  }
+}
+
+function normalizeEmail(email) {
+  return (email || '').trim().toLowerCase()
+}
+
 function mergeUserResults(...lists) {
   const byKey = new Map()
   for (const list of lists) {
@@ -113,6 +172,7 @@ export function useCalendarEvents() {
       .update({ user_id: userId })
       .ilike('user_email', userEmail.trim())
       .is('user_id', null)
+      .or('invite_status.eq.accepted,invite_status.is.null')
   }
 
   const upsertUserProfile = async (userId, userEmail, displayName) => {
@@ -206,19 +266,24 @@ export function useCalendarEvents() {
 
       const { data: memberRows, error: memberErr } = await supabase
         .from('calendar_tag_members')
-        .select('tag_id, sort_order, role')
+        .select('tag_id, sort_order, role, invite_status')
         .or(`user_id.eq.${userId},user_email.ilike.${userEmail}`)
 
       if (memberErr) throw memberErr
 
+      const activeRows = (memberRows || []).filter((row) => {
+        const status = row.invite_status
+        return !status || status === 'accepted'
+      })
+
       const sortByTag = {}
       const roleByTag = {}
-      for (const row of memberRows || []) {
+      for (const row of activeRows) {
         sortByTag[row.tag_id] = row.sort_order ?? 0
         roleByTag[row.tag_id] = row.role
       }
 
-      const tagIds = [...new Set((memberRows || []).map(r => r.tag_id))]
+      const tagIds = [...new Set(activeRows.map(r => r.tag_id))]
       if (tagIds.length === 0) {
         tags.value = []
         return []
@@ -232,7 +297,8 @@ export function useCalendarEvents() {
       if (err) throw err
       tags.value = (data || []).map((tag) => ({
         ...tag,
-        my_role: roleByTag[tag.id] || (tag.owner_id === userId ? 'owner' : null)
+        my_role: roleByTag[tag.id] || (tag.owner_id === userId ? 'owner' : null),
+        is_shared: String(tag.owner_id) !== String(userId)
       })).sort((a, b) => {
         const orderA = sortByTag[a.id] ?? 0
         const orderB = sortByTag[b.id] ?? 0
@@ -262,8 +328,13 @@ export function useCalendarEvents() {
       .single()
 
     if (err) throw err
-    tags.value = [...tags.value, data]
-    return data
+    const owned = {
+      ...data,
+      my_role: 'owner',
+      is_shared: false
+    }
+    tags.value = [...tags.value, owned]
+    return owned
   }
 
   const updateTag = async (tagId, updates) => {
@@ -276,7 +347,13 @@ export function useCalendarEvents() {
 
     if (err) throw err
     const idx = tags.value.findIndex(t => t.id === tagId)
-    if (idx >= 0) tags.value[idx] = data
+    if (idx >= 0) {
+      tags.value[idx] = {
+        ...data,
+        my_role: tags.value[idx].my_role,
+        is_shared: tags.value[idx].is_shared
+      }
+    }
     return data
   }
 
@@ -299,7 +376,7 @@ export function useCalendarEvents() {
       .order('created_at')
 
     if (err) throw err
-    members.value = data || []
+    members.value = sortMembersForDisplay(data || [])
     return members.value
   }
 
@@ -339,16 +416,28 @@ export function useCalendarEvents() {
     const normalized = email.trim().toLowerCase()
     if (!normalized) throw new Error('Email is required')
 
-    const { data, error: err } = await supabase
+    let payload = {
+      tag_id: tagId,
+      user_email: normalized,
+      role,
+      user_id: null,
+      invite_status: 'pending'
+    }
+
+    let { data, error: err } = await supabase
       .from('calendar_tag_members')
-      .insert({
-        tag_id: tagId,
-        user_email: normalized,
-        role,
-        user_id: null
-      })
+      .insert(payload)
       .select()
       .single()
+
+    if (err?.code === '42703' || /invite_status/i.test(err?.message || '')) {
+      delete payload.invite_status
+      ;({ data, error: err } = await supabase
+        .from('calendar_tag_members')
+        .insert(payload)
+        .select()
+        .single())
+    }
 
     if (err) {
       if (err.code === '23505') {
@@ -362,26 +451,191 @@ export function useCalendarEvents() {
       }
       throw err
     }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { syncNotifications } = useNotifications()
+        await syncNotifications(user.id, user.email)
+      }
+    } catch (syncErr) {
+      console.warn('Notification sync after invite failed:', syncErr)
+    }
+
     return data
   }
 
   const removeMember = async (memberId) => {
+    const { data: memberRow, error: fetchErr } = await supabase
+      .from('calendar_tag_members')
+      .select('id, user_id, user_email, tag_id, role, calendar_tags(name)')
+      .eq('id', memberId)
+      .single()
+
+    if (fetchErr) throw fetchErr
+
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { error: err } = await supabase
       .from('calendar_tag_members')
       .delete()
       .eq('id', memberId)
 
     if (err) throw err
+
+    if (memberRow && user && memberRow.role !== 'owner') {
+      const targetEmail = normalizeEmail(memberRow.user_email)
+      const actorEmail = normalizeEmail(user.email)
+      const isSelf =
+        (memberRow.user_id && memberRow.user_id === user.id) ||
+        (targetEmail && actorEmail && targetEmail === actorEmail)
+
+      if (!isSelf) {
+        try {
+          const { error: noticeErr } = await supabase
+            .from('calendar_member_removals')
+            .insert({
+              tag_id: memberRow.tag_id,
+              user_id: memberRow.user_id || null,
+              user_email: memberRow.user_email,
+              calendar_name: memberRow.calendar_tags?.name || 'Calendar',
+              removed_by_user_id: user.id,
+              removed_by_email: user.email || null
+            })
+          if (noticeErr && noticeErr.code !== '42P01') {
+            console.warn('Could not record calendar removal notice:', noticeErr)
+          }
+        } catch (noticeErr) {
+          console.warn('Calendar removal notice skipped:', noticeErr)
+        }
+      }
+    }
+
     members.value = members.value.filter(m => m.id !== memberId)
+
+    if (user) {
+      try {
+        const { syncNotifications } = useNotifications()
+        await syncNotifications(user.id, user.email)
+      } catch (syncErr) {
+        console.warn('Notification sync after member remove failed:', syncErr)
+      }
+    }
   }
 
-  const getEvents = async (tagIds) => {
+  const acceptMemberInvite = async (memberId, userId, userEmail) => {
+    if (!memberId || !userId) {
+      throw new Error('Missing member or user')
+    }
+
+    const email = normalizeEmail(userEmail)
+    let updateQuery = supabase
+      .from('calendar_tag_members')
+      .update({ invite_status: 'accepted', user_id: userId })
+      .eq('id', memberId)
+
+    if (email) {
+      updateQuery = updateQuery.or(`user_id.eq.${userId},user_email.ilike.${email}`)
+    } else {
+      updateQuery = updateQuery.eq('user_id', userId)
+    }
+
+    let { data, error: err } = await updateQuery.select('tag_id').single()
+
+    if (err?.code === '42703' || /invite_status/i.test(err?.message || '')) {
+      let fallback = supabase
+        .from('calendar_tag_members')
+        .update({ user_id: userId })
+        .eq('id', memberId)
+      if (email) {
+        fallback = fallback.or(`user_id.eq.${userId},user_email.ilike.${email}`)
+      } else {
+        fallback = fallback.eq('user_id', userId)
+      }
+      ({ data, error: err } = await fallback.select('tag_id').single())
+    }
+
+    if (err) throw err
+
+    await getTags(userId, userEmail)
+    return data?.tag_id || true
+  }
+
+  const rejectMemberInvite = async (memberId, userId, userEmail) => {
+    if (!memberId) throw new Error('Missing member')
+
+    const email = normalizeEmail(userEmail)
+    let query = supabase
+      .from('calendar_tag_members')
+      .delete()
+      .eq('id', memberId)
+
+    if (userId && email) {
+      query = query.or(`user_id.eq.${userId},user_email.ilike.${email}`)
+    } else if (userId) {
+      query = query.eq('user_id', userId)
+    } else if (email) {
+      query = query.ilike('user_email', email)
+    }
+
+    const { error: err } = await query
+    if (err) throw err
+
+    if (userId && userEmail) {
+      await getTags(userId, userEmail)
+    }
+    return true
+  }
+
+  const fetchResponsesForEvents = async (eventIds) => {
+    if (!eventIds?.length) return []
+    const { data, error: err } = await supabase
+      .from('calendar_event_responses')
+      .select('id, event_id, user_id, user_email, response_status, responded_at')
+      .in('event_id', eventIds)
+
+    if (err) {
+      if (err.code === '42P01') return []
+      throw err
+    }
+    return data || []
+  }
+
+  const attachMyResponseToEvents = (eventList, responseRows, userId, userEmail) => {
+    const email = normalizeEmail(userEmail)
+    const byEvent = new Map()
+    for (const row of responseRows || []) {
+      if (!byEvent.has(row.event_id)) byEvent.set(row.event_id, [])
+      byEvent.get(row.event_id).push(row)
+    }
+
+    return (eventList || []).map((ev) => {
+      const rows = byEvent.get(ev.id) || []
+      const mine = rows.find((r) =>
+        (userId && r.user_id === userId) ||
+        normalizeEmail(r.user_email) === email
+      )
+      const memberCount = rows.length
+      const needsRsvp = memberCount > 1
+      return {
+        ...ev,
+        my_response_status: mine?.response_status || (needsRsvp ? null : 'accepted'),
+        my_response_id: mine?.id || null,
+        response_count: rows.length,
+        accepted_count: rows.filter((r) => r.response_status === 'accepted').length,
+        pending_count: rows.filter((r) => r.response_status === 'pending').length,
+        rejected_count: rows.filter((r) => r.response_status === 'rejected').length
+      }
+    })
+  }
+
+  const getEvents = async (tagIds, userId = null, userEmail = '', { silent = false } = {}) => {
     if (!tagIds?.length) {
       events.value = []
       return []
     }
 
-    loading.value = true
+    if (!silent) loading.value = true
     error.value = null
     try {
       const { data, error: err } = await supabase
@@ -391,16 +645,128 @@ export function useCalendarEvents() {
         .order('start_at')
 
       if (err) throw err
-      events.value = data || []
+      const list = data || []
+      let withResponses = list
+      try {
+        const responseRows = await fetchResponsesForEvents(list.map((e) => e.id))
+        withResponses = attachMyResponseToEvents(list, responseRows, userId, userEmail)
+      } catch (respErr) {
+        if (respErr?.code !== '42P01') console.warn('Event responses unavailable:', respErr)
+      }
+      events.value = withResponses
       return events.value
     } catch (err) {
       error.value = err.message
       console.error('Error fetching calendar events:', err)
       return []
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
+
+  const seedEventResponses = async (eventId, tagId, creatorUserId, creatorEmail) => {
+    const creatorNorm = normalizeEmail(creatorEmail)
+    const { data: memberRows, error: memberErr } = await supabase
+      .from('calendar_tag_members')
+      .select('user_id, user_email, invite_status, role')
+      .eq('tag_id', tagId)
+
+    if (memberErr) throw memberErr
+
+    const activeMembers = (memberRows || []).filter((m) => {
+      const status = m.invite_status
+      return !status || status === 'accepted'
+    })
+
+    if (activeMembers.length <= 1) return
+
+    const rows = []
+    const seen = new Set()
+    for (const m of activeMembers) {
+      const email = normalizeEmail(m.user_email)
+      if (!email || seen.has(email)) continue
+      seen.add(email)
+      const isCreator =
+        (creatorUserId && m.user_id === creatorUserId) ||
+        email === creatorNorm
+      rows.push({
+        event_id: eventId,
+        user_email: email,
+        user_id: m.user_id || null,
+        response_status: isCreator ? 'accepted' : 'pending',
+        responded_at: isCreator ? new Date().toISOString() : null
+      })
+    }
+
+    if (!rows.length) return
+
+    const { error: insertErr } = await supabase
+      .from('calendar_event_responses')
+      .insert(rows)
+
+    if (insertErr && insertErr.code !== '42P01') throw insertErr
+  }
+
+  const respondToEvent = async (eventId, userId, userEmail, status) => {
+    const email = normalizeEmail(userEmail)
+    if (!eventId || !email) throw new Error('Missing event or user')
+    if (!['accepted', 'rejected', 'pending'].includes(status)) {
+      throw new Error('Invalid response status')
+    }
+
+    const payload = {
+      response_status: status,
+      responded_at: status === 'pending' ? null : new Date().toISOString(),
+      user_id: userId || null
+    }
+
+    let { data, error: err } = await supabase
+      .from('calendar_event_responses')
+      .update(payload)
+      .eq('event_id', eventId)
+      .ilike('user_email', email)
+      .select()
+      .single()
+
+    if (err?.code === 'PGRST116') {
+      ({ data, error: err } = await supabase
+        .from('calendar_event_responses')
+        .insert({
+          event_id: eventId,
+          user_email: email,
+          user_id: userId || null,
+          ...payload
+        })
+        .select()
+        .single())
+    }
+
+    if (err) throw err
+
+    const idx = events.value.findIndex((e) => e.id === eventId)
+    if (idx >= 0) {
+      events.value[idx] = {
+        ...events.value[idx],
+        my_response_status: status,
+        my_response_id: data?.id || events.value[idx].my_response_id
+      }
+    }
+
+    try {
+      const { syncNotifications } = useNotifications()
+      await syncNotifications(userId, userEmail)
+    } catch (syncErr) {
+      console.warn('Notification sync after RSVP failed:', syncErr)
+    }
+
+    return data
+  }
+
+  const acceptEventInvite = async (eventId, userId, userEmail) =>
+    respondToEvent(eventId, userId, userEmail, 'accepted')
+
+  const rejectEventInvite = async (eventId, userId, userEmail) =>
+    respondToEvent(eventId, userId, userEmail, 'rejected')
 
   const createEvent = async (userId, userEmail, displayName, event) => {
     const row = {
@@ -424,8 +790,29 @@ export function useCalendarEvents() {
       .single()
 
     if (err) throw err
-    events.value = [...events.value, data]
-    return data
+
+    let created = {
+      ...data,
+      my_response_status: 'accepted',
+      response_count: 1
+    }
+    try {
+      await seedEventResponses(data.id, event.tagId, userId, userEmail)
+      const responseRows = await fetchResponsesForEvents([data.id])
+      ;[created] = attachMyResponseToEvents([data], responseRows, userId, userEmail)
+    } catch (seedErr) {
+      if (seedErr?.code !== '42P01') console.warn('Event response seed failed:', seedErr)
+    }
+    events.value = [...events.value, created]
+
+    try {
+      const { syncNotifications } = useNotifications()
+      await syncNotifications(userId, userEmail)
+    } catch (syncErr) {
+      console.warn('Notification sync after event create failed:', syncErr)
+    }
+
+    return created
   }
 
   const updateEvent = async (eventId, updates) => {
@@ -438,7 +825,27 @@ export function useCalendarEvents() {
 
     if (err) throw err
     const idx = events.value.findIndex(e => e.id === eventId)
-    if (idx >= 0) events.value[idx] = data
+    if (idx >= 0) {
+      const prev = events.value[idx]
+      events.value = events.value.map((e, i) =>
+        i === idx ? { ...prev, ...data } : e
+      )
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { syncNotifications } = useNotifications()
+        setTimeout(() => {
+          syncNotifications(user.id, user.email).catch((syncErr) => {
+            console.warn('Notification sync after event update failed:', syncErr)
+          })
+        }, 1500)
+      }
+    } catch (syncErr) {
+      console.warn('Notification sync after event update failed:', syncErr)
+    }
+
     return data
   }
 
@@ -452,7 +859,8 @@ export function useCalendarEvents() {
     events.value = events.value.filter(e => e.id !== eventId)
   }
 
-  const toQalendarEvents = (dbEvents) => {
+  const toQalendarEvents = (dbEvents, options = {}) => {
+    const { userId = null } = options
     return (dbEvents || []).map(ev => {
       const tag = ev.calendar_tags || tags.value.find(t => t.id === ev.tag_id)
       const scheme = slugifyTag(tag?.name || 'default')
@@ -466,6 +874,11 @@ export function useCalendarEvents() {
         start = adjusted.start
         end = adjusted.end
       }
+      const isCreator = userId && ev.created_by === userId
+      const responseStatus = isCreator
+        ? 'accepted'
+        : (ev.my_response_status || (ev.response_count > 1 ? 'pending' : 'accepted'))
+      const tagColor = tag?.color || '#667eea'
       return {
         id: ev.id,
         title: ev.title,
@@ -475,8 +888,10 @@ export function useCalendarEvents() {
         time: { start, end },
         originalTime,
         colorScheme: scheme,
+        tagColor,
+        responseStatus,
         isEditable: true,
-        isCustom: allDay ? false : 'week',
+        isCustom: allDay ? false : ['week'],
         topic: tag?.name || ''
       }
     })
@@ -537,11 +952,18 @@ export function useCalendarEvents() {
     inviteMember,
     inviteMembers,
     removeMember,
+    acceptMemberInvite,
+    rejectMemberInvite,
     getEvents,
+    seedEventResponses,
+    respondToEvent,
+    acceptEventInvite,
+    rejectEventInvite,
     createEvent,
     updateEvent,
     deleteEvent,
     toQalendarEvents,
+    eventResponseStyle,
     buildColorSchemes,
     fromQalendarDrag,
     parseQalendarTime,

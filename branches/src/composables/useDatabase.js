@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { supabase } from '../supabase'
+import { useNotifications } from './useNotifications'
 
 export function useDatabase() {
   const loading = ref(false)
@@ -179,6 +180,14 @@ export function useDatabase() {
     }
     
     console.log('Document moved to public library successfully:', data.id)
+
+    try {
+      const { syncNotifications } = useNotifications()
+      await syncNotifications(user.id, user.email)
+    } catch (syncErr) {
+      console.warn('Notification sync after publish failed:', syncErr)
+    }
+
     return data
   }
 

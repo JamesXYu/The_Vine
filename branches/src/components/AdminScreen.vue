@@ -99,6 +99,25 @@
         <div class="toolbar-divider"></div>
         
         <div class="toolbar-group">
+          <button
+            :class="{ active: editor?.isActive('paragraph', { paragraphSpacing: 'relaxed' }) }"
+            @click="toggleEnlargedParagraphSpacing"
+            title="Enlarge line spacing"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="7" x2="13" y2="7"/>
+              <line x1="4" y1="12" x2="13" y2="12"/>
+              <line x1="4" y1="17" x2="13" y2="17"/>
+              <line x1="19" y1="9" x2="19" y2="15"/>
+              <polyline points="16,9 19,6 22,9"/>
+              <polyline points="16,15 19,18 22,15"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group">
           <button 
             :class="{ active: editor?.isActive('bulletList') }"
             @click="editor?.chain().focus().toggleBulletList().run()"
@@ -190,7 +209,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -198,6 +217,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Highlight from '@tiptap/extension-highlight'
+import { ParagraphSpacing } from '../extensions/paragraphSpacing'
 import { supabase } from '../supabase'
 import { useDatabase } from '../composables/useDatabase'
 
@@ -228,6 +248,22 @@ export default {
     const pendingAction = ref(null)
     const forceLeave = ref(false)
 
+    const NEW_DOC_CONTENT = '<h1></h1>'
+
+    const applyNewDocumentContent = (ed) => {
+      if (!ed) return
+      const html = ed.getHTML().trim()
+      const isBlank =
+        ed.isEmpty ||
+        !html ||
+        html === '<p></p>' ||
+        html === '<p><br></p>'
+      if (isBlank) {
+        ed.commands.setContent(NEW_DOC_CONTENT, false)
+      }
+      ed.commands.focus('start')
+    }
+
     const editor = useEditor({
       extensions: [
         StarterKit.configure({
@@ -237,27 +273,38 @@ export default {
         }),
         Placeholder.configure({
           placeholder: ({ node }) => {
-            if (node.type.name === 'heading') {
+            if (node.type.name === 'heading' && node.attrs.level === 1) {
               return 'Welcome to the Vine'
+            }
+            if (node.type.name === 'heading') {
+              return 'Heading'
             }
             return 'start your note here'
           },
           showOnlyWhenEditable: true,
-          showOnlyCurrent: true,
+          showOnlyCurrent: false,
         }),
         Underline,
         TextAlign.configure({
           types: ['heading', 'paragraph'],
         }),
         Highlight,
+        ParagraphSpacing,
       ],
-      content: '',
+      content: NEW_DOC_CONTENT,
+      onCreate: ({ editor: ed }) => {
+        if (!route.query.doc) {
+          applyNewDocumentContent(ed)
+        }
+      },
       editorProps: {
         attributes: {
           class: 'prose',
         },
       },
     })
+
+    const initNewDocumentEditor = () => applyNewDocumentContent(editor.value)
 
     const wordCount = computed(() => {
       if (!editor.value) return 0
@@ -289,6 +336,15 @@ export default {
       setTimeout(() => toast.value = '', 3000)
     }
 
+    const toggleEnlargedParagraphSpacing = () => {
+      if (!editor.value) return
+      if (editor.value.isActive('paragraph', { paragraphSpacing: 'relaxed' })) {
+        editor.value.chain().focus().setParagraphSpacing('normal').run()
+      } else {
+        editor.value.chain().focus().setParagraphSpacing('relaxed').run()
+      }
+    }
+
     const loadDocument = async (docId) => {
       // First try to fetch from public_documents table
       let doc = await db.getPublicDocument(docId)
@@ -305,7 +361,12 @@ export default {
         currentDocId.value = doc.id
         docTitle.value = doc.title
         originalTitle.value = doc.title
-        const content = doc.content || '<p>Start writing...</p>'
+        const trimmed = (doc.content || '').trim()
+        const isBlank =
+          !trimmed ||
+          trimmed === '<p></p>' ||
+          trimmed === '<p><br></p>'
+        const content = isBlank ? NEW_DOC_CONTENT : doc.content
         editor.value?.commands.setContent(content)
         // Update originalContent to match what TipTap actually has (TipTap normalizes HTML)
         originalContent.value = editor.value?.getHTML() || content
@@ -413,11 +474,22 @@ export default {
       if (docId) {
         await loadDocument(docId)
       } else {
-        // Only set H1 for new documents
-        editor.value?.commands.setHeading({ level: 1 })
-        editor.value?.commands.focus()
+        await nextTick()
+        initNewDocumentEditor()
       }
     })
+
+    watch(
+      () => route.query.doc,
+      async (docId) => {
+        if (docId) {
+          await loadDocument(docId)
+        } else {
+          await nextTick()
+          initNewDocumentEditor()
+        }
+      }
+    )
 
     onBeforeUnmount(() => {
       editor.value?.destroy()
@@ -519,7 +591,8 @@ export default {
       showUnsavedModal,
       cancelNavigation,
       discardChanges,
-      saveAndContinue
+      saveAndContinue,
+      toggleEnlargedParagraphSpacing,
     }
   }
 }
@@ -766,6 +839,7 @@ export default {
   color: #333;
 }
 
+.editor-content :deep(.ProseMirror p.is-empty:first-child::before),
 .editor-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   float: left;
@@ -776,9 +850,12 @@ export default {
   font-size: 18px;
 }
 
+.editor-content :deep(.ProseMirror h1.is-empty:first-child::before),
 .editor-content :deep(.ProseMirror h1.is-editor-empty:first-child::before),
-.editor-content :deep(.ProseMirror h2.is-editor-empty:first-child::before),
-.editor-content :deep(.ProseMirror h3.is-editor-empty:first-child::before) {
+.editor-content :deep(.ProseMirror h2.is-empty::before),
+.editor-content :deep(.ProseMirror h2.is-editor-empty::before),
+.editor-content :deep(.ProseMirror h3.is-empty::before),
+.editor-content :deep(.ProseMirror h3.is-editor-empty::before) {
   content: attr(data-placeholder);
   float: left;
   color: #ccc;
@@ -787,6 +864,7 @@ export default {
   height: 0;
 }
 
+.editor-content :deep(.ProseMirror h1.is-empty:first-child::before),
 .editor-content :deep(.ProseMirror h1.is-editor-empty:first-child::before) {
   font-size: 36px;
   font-weight: 700;
@@ -805,7 +883,7 @@ export default {
   font-size: 26px;
   font-weight: 600;
   color: #1a1a1a;
-  margin: 40px 0 16px;
+  margin: 0 0 16px;
   line-height: 1.4;
 }
 
@@ -813,12 +891,16 @@ export default {
   font-size: 20px;
   font-weight: 600;
   color: #1a1a1a;
-  margin: 32px 0 12px;
+  margin: 0 0 16px;
   line-height: 1.4;
 }
 
 .editor-content :deep(p) {
-  margin: 0 0 16px;
+  margin: 0 0 6px;
+}
+
+.editor-content :deep(p[data-paragraph-spacing="relaxed"]) {
+  margin-bottom: 16px;
 }
 
 .editor-content :deep(ul),

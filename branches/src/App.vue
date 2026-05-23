@@ -141,27 +141,44 @@ export default {
       return user.value.user_metadata?.role === 'admin'
     })
 
+    const { unreadCount, syncNotifications, clearNotificationsState } = useNotifications()
+
+    const refreshNotifications = async (authUser) => {
+      if (!authUser?.id) {
+        clearNotificationsState()
+        return
+      }
+      await syncNotifications(authUser.id, authUser.email)
+    }
+
     onMounted(async () => {
       const { data: { session } } = await supabase.auth.getSession()
       user.value = session?.user ?? null
       loading.value = false
+      if (user.value) {
+        await refreshNotifications(user.value)
+      }
 
-      supabase.auth.onAuthStateChange((_event, session) => {
+      supabase.auth.onAuthStateChange(async (_event, session) => {
         user.value = session?.user ?? null
+        if (user.value) {
+          await refreshNotifications(user.value)
+        } else {
+          clearNotificationsState()
+        }
       })
     })
 
-    const handleLogin = (userData) => {
+    const handleLogin = async (userData) => {
       user.value = userData
+      await refreshNotifications(userData)
     }
 
     const handleLogout = async () => {
       await supabase.auth.signOut()
       user.value = null
+      clearNotificationsState()
     }
-
-    // Notification System using shared composable
-    const { unreadCount } = useNotifications()
 
     return {
       user,

@@ -91,6 +91,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Highlight from '@tiptap/extension-highlight'
+import { ParagraphSpacing } from '../extensions/paragraphSpacing'
 import { supabase } from '../supabase'
 import { useDatabase } from '../composables/useDatabase'
 
@@ -132,6 +133,7 @@ export default {
           types: ['heading', 'paragraph'],
         }),
         Highlight,
+        ParagraphSpacing,
       ],
       content: '',
       editable: false, // Read-only mode
@@ -542,7 +544,7 @@ export default {
   font-size: 26px;
   font-weight: 600;
   color: #1a1a1a;
-  margin: 40px 0 16px;
+  margin: 0 0 16px;
   line-height: 1.4;
 }
 
@@ -550,12 +552,16 @@ export default {
   font-size: 20px;
   font-weight: 600;
   color: #1a1a1a;
-  margin: 32px 0 12px;
+  margin: 0 0 16px;
   line-height: 1.4;
 }
 
 .editor-content :deep(p) {
-  margin: 0 0 16px;
+  margin: 0 0 6px;
+}
+
+.editor-content :deep(p[data-paragraph-spacing="relaxed"]) {
+  margin-bottom: 16px;
 }
 
 .editor-content :deep(ul),
