@@ -106,32 +106,9 @@ function sortMembersForDisplay(rows) {
   })
 }
 
-export function eventResponseStyle(baseColor, status) {
-  const bg = baseColor || '#667eea'
-  if (status === 'rejected') {
-    return {
-      backgroundColor: bg,
-      color: '#fff',
-      opacity: 0.38,
-      border: '1px solid rgba(0, 0, 0, 0.08)',
-      boxShadow: 'none'
-    }
-  }
-  if (status === 'pending') {
-    return {
-      backgroundColor: bg,
-      color: '#fff',
-      opacity: 0.78,
-      border: '2px dashed rgba(255, 255, 255, 0.9)',
-      boxShadow: 'none'
-    }
-  }
+export function eventResponseStyle(baseColor) {
   return {
-    backgroundColor: bg,
-    color: '#fff',
-    opacity: 1,
-    border: 'none',
-    boxShadow: 'none'
+    '--event-accent': baseColor || '#667eea'
   }
 }
 

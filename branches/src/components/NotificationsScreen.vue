@@ -270,7 +270,7 @@ export default {
           acceptMemberInvite
         })
         if (!tagId) {
-          inviteError.value = 'Could not accept invite. Run migration-calendar-invite-accept-policy.sql and migration-calendar-invite-tag-select.sql in Supabase if this keeps failing.'
+          inviteError.value = 'Could not accept invite. Re-run branches/supabase-schema.sql in Supabase SQL Editor if this keeps failing.'
           return
         }
         await refreshNotifications()

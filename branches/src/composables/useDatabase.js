@@ -773,64 +773,19 @@ export function useDatabase() {
   }
 
   /**
-   * Get most saved documents (sorted by save count)
+   * Get most saved public documents (global save counts across all users)
    */
   const getMostSavedDocuments = async (limit = 5) => {
-    // First, get all public document IDs
-    const { data: publicDocs, error: publicError } = await supabase
-      .from('public_documents')
-      .select('id')
-
-    if (publicError) {
-      console.error('Error fetching public documents:', publicError)
-      return []
-    }
-
-    const publicDocIds = (publicDocs || []).map(doc => doc.id)
-
-    if (publicDocIds.length === 0) return []
-
-    // Get saved documents only for public documents
-    const { data, error } = await supabase
-      .from('saved_documents')
-      .select('document_id')
-      .in('document_id', publicDocIds)
+    const { data, error } = await supabase.rpc('get_most_saved_public_documents', {
+      p_limit: limit
+    })
 
     if (error) {
       console.error('Error getting most saved:', error)
       return []
     }
 
-    // Count saves per document
-    const counts = {}
-    data.forEach(item => {
-      counts[item.document_id] = (counts[item.document_id] || 0) + 1
-    })
-
-    // Sort by count and get top documents
-    const sortedIds = Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
-      .map(([id]) => id)
-
-    // Fetch full document data
-    if (sortedIds.length === 0) return []
-
-    const { data: docs, error: docError } = await supabase
-      .from('public_documents')
-      .select('*')
-      .in('id', sortedIds)
-
-    if (docError) {
-      console.error('Error fetching most saved docs:', docError)
-      return []
-    }
-
-    // Merge with save counts and sort
-    return (docs || []).map(doc => ({
-      ...doc,
-      save_count: counts[doc.id] || 0
-    })).sort((a, b) => b.save_count - a.save_count)
+    return data || []
   }
 
   return {

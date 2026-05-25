@@ -33,6 +33,7 @@
                 :key="event.id"
                 type="button"
                 class="calendar-month__event is-event"
+                :class="monthEventRsvpClass(event)"
                 :style="monthEventStyle(event)"
                 @click.stop="$emit('select-event', event.id)"
               >
@@ -115,11 +116,18 @@ export default {
     const monthEventStyle = (event) => {
       const scheme = props.colorSchemes?.[event?.colorScheme]
       const bg = scheme?.backgroundColor || event?.tagColor || '#667eea'
-      const styled = eventResponseStyle(bg, event?.responseStatus)
+      const styled = eventResponseStyle(bg)
       return {
-        '--63a9bc8a': styled.backgroundColor,
+        '--63a9bc8a': styled['--event-accent'],
         ...styled
       }
+    }
+
+    const monthEventRsvpClass = (event) => {
+      const status = event?.responseStatus
+      if (status === 'pending') return 'is-rsvp-pending'
+      if (status === 'rejected') return 'is-rsvp-rejected'
+      return null
     }
 
     const updateWeekRowHeight = () => {
@@ -272,6 +280,7 @@ export default {
       weekdayLabels,
       eventsForDay,
       monthEventStyle,
+      monthEventRsvpClass,
       formatMonthEventTime,
       onViewportScroll,
       onMoreEvents
@@ -378,34 +387,61 @@ export default {
 }
 
 .calendar-scroll-month__day :deep(.calendar-month__event) {
+  --event-accent: #667eea;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   width: 100%;
   margin: 0;
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 3px 6px 3px 7px;
+  border-radius: 5px;
   font-size: 10px;
-  line-height: 1.2;
+  line-height: 1.25;
   text-align: left;
   cursor: pointer;
   overflow: hidden;
   box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--event-accent) 18%, transparent);
+  border-left: 2px solid var(--event-accent);
+  background: color-mix(in srgb, var(--event-accent) 10%, #fff);
+  color: #1a1a1a;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.15s ease;
+}
+
+.calendar-scroll-month__day :deep(.calendar-month__event:hover) {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+}
+
+.calendar-scroll-month__day :deep(.calendar-month__event.is-rsvp-pending) {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--event-accent) 5%, #fff),
+      color-mix(in srgb, var(--event-accent) 5%, #fff) 3px,
+      color-mix(in srgb, var(--event-accent) 11%, #fff) 3px,
+      color-mix(in srgb, var(--event-accent) 11%, #fff) 6px
+    );
+  border-style: dashed;
+  border-left-style: solid;
+}
+
+.calendar-scroll-month__day :deep(.calendar-month__event.is-rsvp-rejected) {
+  background: #f1f3f5;
+  border-color: #e9ecef;
+  border-left-color: #ced4da;
+  opacity: 0.7;
 }
 
 .calendar-scroll-month__day :deep(.calendar-month__event-time) {
   flex-shrink: 0;
   font-size: 9px;
-  opacity: 0.92;
+  font-weight: 500;
+  color: #6c757d;
 }
 
 .calendar-scroll-month__day :deep(.calendar-month__event-color) {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: currentColor;
-  opacity: 0.85;
+  display: none;
 }
 
 .calendar-scroll-month__day :deep(.calendar-month__event-title) {
@@ -413,6 +449,12 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+  color: color-mix(in srgb, var(--event-accent) 50%, #1a1a1a);
+}
+
+.calendar-scroll-month__day :deep(.calendar-month__event.is-rsvp-rejected .calendar-month__event-title) {
+  text-decoration: line-through;
+  color: #868e96;
 }
 
 .calendar-scroll-month__more {

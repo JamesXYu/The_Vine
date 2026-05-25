@@ -99,6 +99,7 @@
             <template #weekDayEvent="{ eventData }">
               <div
                 class="vine-week-event"
+                :class="weekEventRsvpClass(eventData)"
                 :style="weekEventBlockStyle(eventData)"
               >
                 <div class="vine-week-event__title">{{ eventData.title }}</div>
@@ -1131,43 +1132,9 @@ export default {
 
     const shareRoleToDbRole = (shareRole) => (shareRole === 'admin' ? 'editor' : 'viewer')
 
-    const tagColorTint = (hex, alpha = 0.16) => {
-      const color = hex || '#667eea'
-      if (!color.startsWith('#')) return `rgba(102, 126, 234, ${alpha})`
-      let h = color.slice(1)
-      if (h.length === 3) h = h.split('').map((c) => c + c).join('')
-      const r = parseInt(h.slice(0, 2), 16)
-      const g = parseInt(h.slice(2, 4), 16)
-      const b = parseInt(h.slice(4, 6), 16)
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`
-    }
-
-    const calendarTagStyle = (tag) => {
-      const color = tag.color || '#667eea'
-      const isActive = activeTagId.value === tag.id
-
-      if (isSharedTag(tag)) {
-        return {
-          '--cal-color': color,
-          color,
-          borderColor: color,
-          borderStyle: 'dashed',
-          borderWidth: isActive ? '2px' : '1px',
-          background: `linear-gradient(135deg, ${tagColorTint(color, 0.1)} 0%, ${tagColorTint(color, 0.26)} 100%)`,
-          boxShadow: isActive ? `0 0 0 1px ${tagColorTint(color, 0.45)}` : 'none'
-        }
-      }
-
-      return {
-        '--cal-color': color,
-        color,
-        borderColor: color,
-        borderStyle: 'solid',
-        borderWidth: isActive ? '2px' : '1px',
-        backgroundColor: tagColorTint(color, 0.22),
-        boxShadow: 'none'
-      }
-    }
+    const calendarTagStyle = (tag) => ({
+      '--cal-color': tag.color || '#667eea'
+    })
 
     const filteredShareUsers = computed(() => {
       const q = shareSearchQuery.value.trim().toLowerCase()
@@ -1283,7 +1250,14 @@ export default {
     const weekEventBlockStyle = (eventData) => {
       const scheme = qalendarConfig.value.style?.colorSchemes?.[eventData?.colorScheme]
       const bg = scheme?.backgroundColor || eventData?.tagColor || '#667eea'
-      return eventResponseStyle(bg, eventData?.responseStatus)
+      return eventResponseStyle(bg)
+    }
+
+    const weekEventRsvpClass = (eventData) => {
+      const status = eventData?.responseStatus
+      if (status === 'pending') return 'is-rsvp-pending'
+      if (status === 'rejected') return 'is-rsvp-rejected'
+      return null
     }
 
     const allTagIds = computed(() => tags.value.map(t => t.id))
@@ -2355,6 +2329,7 @@ export default {
       showWeekEventTime,
       showWeekEventCreator,
       weekEventBlockStyle,
+      weekEventRsvpClass,
       showEventModal,
       eventViewOnly,
       activeEditingEvent,
@@ -2515,14 +2490,14 @@ export default {
   justify-content: flex-start;
   box-sizing: border-box;
   width: 100%;
-  min-height: 30px;
-  max-height: 30px;
-  padding: 5px 10px;
-  border-radius: 14px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 6px 12px;
+  border-radius: 10px;
   border: 1px solid #e9ecef;
-  background: #f8f9fa;
-  font-size: 11px;
-  font-weight: 600;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1.2;
   letter-spacing: normal;
   text-transform: none;
@@ -2531,16 +2506,24 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calendar-tag-list .calendar-all-btn:hover {
+  background: #f8f9fa;
+  border-color: #dee2e6;
 }
 
 .calendar-tag-list .calendar-all-btn.active {
   background: #1a1a1a;
   border-color: #1a1a1a;
   color: #fff;
-  box-shadow: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .calendar-tag-list .folder-tag.calendar-tag {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2548,39 +2531,66 @@ export default {
   gap: 4px;
   box-sizing: border-box;
   width: 100%;
-  min-height: 34px;
+  min-height: 36px;
   max-height: none;
-  padding: 6px 10px;
-  border-radius: 14px;
+  padding: 7px 12px 7px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--cal-color, #667eea) 18%, #e9ecef);
+  background: #fff;
+  color: #1a1a1a;
   text-align: left;
   text-transform: none;
   letter-spacing: normal;
   font-size: 12px;
-  font-weight: 600;
-  line-height: 1.2;
+  font-weight: 500;
+  line-height: 1.25;
   white-space: normal;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+
+.calendar-tag-list .folder-tag.calendar-tag::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--cal-color, #667eea);
+  border-radius: 10px 0 0 10px;
 }
 
 .calendar-tag-list .folder-tag.calendar-tag:not(.tag-shared) {
   flex-direction: row;
   align-items: center;
-  max-height: 34px;
+  max-height: 36px;
   white-space: nowrap;
 }
 
 .calendar-tag-list .folder-tag.calendar-tag.tag-shared {
-  min-height: 44px;
-  padding: 5px 10px 6px;
+  min-height: 46px;
+  padding: 6px 12px 7px 14px;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--cal-color, #667eea) 32%, #e9ecef);
+}
+
+.calendar-tag-list .folder-tag.calendar-tag:hover {
+  background: color-mix(in srgb, var(--cal-color, #667eea) 5%, #fff);
+  border-color: color-mix(in srgb, var(--cal-color, #667eea) 28%, #e9ecef);
 }
 
 .calendar-tag-list .folder-tag.active {
-  box-shadow: none;
-  border-width: 2px;
-  padding: 5px 9px;
+  background: color-mix(in srgb, var(--cal-color, #667eea) 10%, #fff);
+  border-color: color-mix(in srgb, var(--cal-color, #667eea) 42%, #e9ecef);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--cal-color, #667eea) 22%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 7px 12px 7px 14px;
 }
 
 .calendar-tag-list .folder-tag.calendar-tag.tag-shared.active {
-  padding: 4px 9px 5px;
+  padding: 6px 12px 7px 14px;
 }
 
 .calendar-tag-row {
@@ -3099,22 +3109,22 @@ export default {
 }
 
 .calendar-tag.tag-shared .calendar-kind-badge {
-  color: var(--cal-color, #667eea);
-  background: color-mix(in srgb, var(--cal-color, #667eea) 18%, white);
-  border: 1px solid color-mix(in srgb, var(--cal-color, #667eea) 38%, transparent);
+  color: color-mix(in srgb, var(--cal-color, #667eea) 75%, #1a1a1a);
+  background: color-mix(in srgb, var(--cal-color, #667eea) 12%, #f8f9fa);
+  border: 1px solid color-mix(in srgb, var(--cal-color, #667eea) 22%, #e9ecef);
 }
 
 .calendar-kind-badge {
   flex-shrink: 0;
   align-self: flex-start;
   margin: 0;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .calendar-tag.tag-dragging {
@@ -3413,7 +3423,20 @@ export default {
   background: #fff;
 }
 
+/* Strip Qalendar’s solid fill so custom event chrome shows */
+.calendar-wrapper :deep(.calendar-week__event) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.calendar-wrapper :deep(.calendar-week__event .calendar-week__event-info-wrapper) {
+  padding: 1px !important;
+  height: 100%;
+}
+
 .calendar-wrapper :deep(.vine-week-event) {
+  --event-accent: #667eea;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -3421,18 +3444,56 @@ export default {
   width: 100%;
   height: 100%;
   min-height: 100%;
-  padding: 3px 5px;
-  border-radius: 4px;
+  padding: 4px 6px 4px 8px;
+  border-radius: 6px;
   overflow: hidden;
   box-sizing: border-box;
-  line-height: 1.15;
+  line-height: 1.2;
   cursor: pointer;
-  border-style: solid;
+  border: 1px solid color-mix(in srgb, var(--event-accent) 20%, #e9ecef);
+  border-left: 3px solid var(--event-accent);
+  background: color-mix(in srgb, var(--event-accent) 11%, #fff);
+  color: #1a1a1a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.calendar-wrapper :deep(.vine-week-event:hover) {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  border-color: color-mix(in srgb, var(--event-accent) 32%, #dee2e6);
+}
+
+.calendar-wrapper :deep(.vine-week-event.is-rsvp-pending) {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--event-accent) 6%, #fff),
+      color-mix(in srgb, var(--event-accent) 6%, #fff) 4px,
+      color-mix(in srgb, var(--event-accent) 12%, #fff) 4px,
+      color-mix(in srgb, var(--event-accent) 12%, #fff) 8px
+    );
+  border-style: dashed;
+  border-left-style: solid;
+  border-color: color-mix(in srgb, var(--event-accent) 28%, #dee2e6);
+  border-left-color: var(--event-accent);
+}
+
+.calendar-wrapper :deep(.vine-week-event.is-rsvp-rejected) {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  border-left-color: #ced4da;
+  opacity: 0.72;
+}
+
+.calendar-wrapper :deep(.vine-week-event.is-rsvp-rejected .vine-week-event__title) {
+  text-decoration: line-through;
+  color: #868e96;
 }
 
 .calendar-wrapper :deep(.vine-week-event__title) {
   font-size: 11px;
   font-weight: 600;
+  color: color-mix(in srgb, var(--event-accent) 55%, #1a1a1a);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3442,10 +3503,15 @@ export default {
 .calendar-wrapper :deep(.vine-week-event__creator) {
   font-size: 10px;
   margin: 0;
-  opacity: 0.92;
+  color: #6c757d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.calendar-wrapper :deep(.vine-week-event.is-rsvp-pending .vine-week-event__time),
+.calendar-wrapper :deep(.vine-week-event.is-rsvp-pending .vine-week-event__creator) {
+  color: color-mix(in srgb, var(--event-accent) 40%, #6c757d);
 }
 
 .drag-preview {

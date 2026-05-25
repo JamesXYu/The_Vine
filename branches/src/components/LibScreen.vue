@@ -52,7 +52,7 @@
           <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
         </svg>
         Public Library
-        <span class="tab-count public">{{ publicDocuments.length }}</span>
+        <span class="tab-count public">{{ publicLibraryTabCount }}</span>
       </button>
     </div>
 
@@ -346,7 +346,7 @@
               </svg>
             </div>
             <div class="item-name">{{ folder.displayName }}</div>
-            <div class="item-count">{{ folder.count }} items</div>
+            <div class="item-count">{{ folder.count }} {{ folder.count === 1 ? 'file' : 'files' }}</div>
             <button v-if="isAdmin" class="item-menu" @click.stop="togglePublicFolderMenu(folder.id)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
@@ -772,6 +772,18 @@ export default {
 
     const normalizeFolderPath = (path) => (path || '').trim()
 
+    /** Folder is an immediate child of parentPath (one path segment below). */
+    const isDirectChildFolderPath = (folderPath, parentPath) => {
+      const folder = normalizeFolderPath(folderPath)
+      const parent = normalizeFolderPath(parentPath)
+      if (!folder) return false
+      if (!parent) return !folder.includes('/')
+      const prefix = `${parent}/`
+      if (!folder.startsWith(prefix)) return false
+      const remainder = folder.slice(prefix.length)
+      return remainder.length > 0 && !remainder.includes('/')
+    }
+
     const publicFolderNameSet = computed(() =>
       new Set(publicFolders.value.map((f) => normalizeFolderPath(f.name)))
     )
@@ -782,54 +794,54 @@ export default {
       return !publicFolderNameSet.value.has(folder)
     }
 
-    const isPublicDocInFolderTree = (doc, folderPath) => {
-      const docFolder = normalizeFolderPath(doc.folder)
-      const base = normalizeFolderPath(folderPath)
-      if (!base || !docFolder) return false
-      return docFolder === base || docFolder.startsWith(`${base}/`)
-    }
-
     const isPublicDocAtRoot = (doc) => {
       const docFolder = normalizeFolderPath(doc.folder)
       if (!docFolder) return true
       return isOrphanPublicDocument(doc)
     }
 
-    // Helper function to recursively count all documents in a folder and its subfolders
+    /** Files whose folder path matches exactly (not nested under subfolders). */
+    const countDirectDocumentsInFolder = (folderName, documents) => {
+      const normalizedFolder = normalizeFolderPath(folderName)
+      return documents.filter((d) => {
+        const docFolder = normalizeFolderPath(d.folder)
+        if (!normalizedFolder) return !docFolder
+        if (docFolder === normalizedFolder) return true
+        return false
+      }).length
+    }
+
+    const countPublicFolderItems = (folderPath) =>
+      countDirectDocumentsInFolder(folderPath, publicDocuments.value)
+
+    // Personal library: include files in nested subfolders
     const countAllDocumentsInFolder = (folderName, documents, allFolders) => {
       const normalizedFolder = normalizeFolderPath(folderName)
-      // Count documents directly in this folder
-      let count = documents.filter(
-        (d) => normalizeFolderPath(d.folder) === normalizedFolder
-      ).length
-      
-      // Find all subfolders (folders whose path starts with "folderName/")
+      let count = countDirectDocumentsInFolder(folderName, documents)
+
       const prefix = normalizedFolder + '/'
       const subfolders = allFolders.filter((f) => normalizeFolderPath(f.name).startsWith(prefix))
-      
-      // Recursively count documents in each subfolder
+
       for (const subfolder of subfolders) {
-        // Get the relative path from the parent folder
         const relativePath = subfolder.name.replace(prefix, '')
-        // Only count if this is a direct child (no nested separator in relative path)
         if (!relativePath.includes('/')) {
           count += countAllDocumentsInFolder(subfolder.name, documents, allFolders)
         }
       }
-      
+
       return count
     }
 
     const filteredPublicDocuments = computed(() => {
       let docs = [...publicDocuments.value]
-      
+
       if (searchQuery.value) {
         const query = searchQuery.value.toLowerCase()
         docs = docs.filter(doc => doc.title.toLowerCase().includes(query))
       }
-      
+
       docs.sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
-      
+
       return docs
     })
 
@@ -841,26 +853,18 @@ export default {
 
     // Public folders in current view (from public_folders table)
     const currentPublicFoldersInView = computed(() => {
-      let folders = publicFolders.value.filter(folder => {
-        const folderPath = folder.name
-        if (currentPublicFolder.value) {
-          return folderPath.startsWith(currentPublicFolder.value + '/')
-        }
-        return !folder.name.includes('/')
-      })
-      
-      folders = folders.map(f => {
-        if (currentPublicFolder.value) {
-          return {
-            ...f,
-            displayName: f.name.replace(currentPublicFolder.value + '/', ''),
-            count: countAllDocumentsInFolder(f.name, publicDocuments.value, publicFolders.value)
-          }
-        }
-        return { 
-          ...f, 
-          displayName: f.name,
-          count: countAllDocumentsInFolder(f.name, publicDocuments.value, publicFolders.value)
+      let folders = publicFolders.value.filter((folder) =>
+        isDirectChildFolderPath(folder.name, currentPublicFolder.value)
+      )
+
+      folders = folders.map((f) => {
+        const displayName = currentPublicFolder.value
+          ? f.name.replace(`${currentPublicFolder.value}/`, '')
+          : f.name
+        return {
+          ...f,
+          displayName,
+          count: countPublicFolderItems(f.name)
         }
       })
       
@@ -878,10 +882,8 @@ export default {
     const currentPublicDocsInView = computed(() => {
       let docs = publicDocuments.value.filter((doc) => {
         if (currentPublicFolder.value) {
-          // Include documents in this folder and any subfolders
-          return isPublicDocInFolderTree(doc, currentPublicFolder.value)
+          return normalizeFolderPath(doc.folder) === normalizeFolderPath(currentPublicFolder.value)
         }
-        // Root: unfiled docs + orphans (folder path with no matching folder record)
         return isPublicDocAtRoot(doc)
       })
       
@@ -899,6 +901,9 @@ export default {
       
       return docs
     })
+
+    /** Tab badge: files in the current public folder view only (not subfolders or folder cards). */
+    const publicLibraryTabCount = computed(() => currentPublicDocsInView.value.length)
 
     // Methods
     const showToast = (message, type = 'success') => {
@@ -955,10 +960,7 @@ export default {
         
         // Load public folders
         const pubFolders = await db.getPublicFolders()
-        publicFolders.value = pubFolders.map(f => ({
-          ...f,
-          count: countAllDocumentsInFolder(f.name, publicDocuments.value, pubFolders)
-        }))
+        publicFolders.value = pubFolders
       }
     }
 
@@ -1536,6 +1538,7 @@ export default {
       currentDocsInView,
       currentPublicFoldersInView,
       currentPublicDocsInView,
+      publicLibraryTabCount,
       filteredPublicDocuments,
       formatDate,
       navigateToFolder,
