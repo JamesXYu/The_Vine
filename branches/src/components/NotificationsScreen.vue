@@ -7,9 +7,10 @@
       </button>
     </div>
 
-    <div v-if="loading" class="notifications-loading">Loading notifications…</div>
+    <div class="notifications-body">
+      <div v-if="loading" class="notifications-loading">Loading notifications…</div>
 
-    <template v-else>
+      <template v-else>
       <section
         v-for="section in sections"
         :key="section.type"
@@ -70,6 +71,7 @@
         You're all caught up — no new notifications
       </div>
     </template>
+    </div>
 
     <!-- Detail popup (no redirect on click) -->
     <div
@@ -328,18 +330,30 @@ export default {
 
 <style scoped>
 .notifications-page {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 32px;
+  padding: 24px 32px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .notifications-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 28px;
+  margin-bottom: 20px;
   padding-bottom: 16px;
   border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.notifications-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .notifications-header h1 {
@@ -372,7 +386,11 @@ export default {
 }
 
 .notification-section {
-  margin-bottom: 28px;
+  margin-bottom: 24px;
+}
+
+.notification-section:last-child {
+  margin-bottom: 0;
 }
 
 .section-head {
@@ -698,5 +716,20 @@ export default {
 .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .notifications-page {
+    padding: 16px;
+  }
+
+  .notifications-header h1 {
+    font-size: 20px;
+  }
+
+  .mark-all-read-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
 }
 </style>

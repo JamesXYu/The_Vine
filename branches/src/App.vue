@@ -368,6 +368,9 @@ body {
   height: 100vh;
   width: calc(100% - 240px);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Notification System */

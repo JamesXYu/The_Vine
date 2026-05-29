@@ -196,7 +196,9 @@
         <div class="modal-actions">
           <button class="btn-secondary" @click="cancelNavigation">Cancel</button>
           <button class="btn-danger" @click="discardChanges">Discard</button>
-          <button class="btn-primary" @click="saveAndContinue">Save</button>
+          <button class="btn-primary" @click="saveAndContinue" :disabled="isSaving">
+            {{ isSaving ? 'Saving...' : 'Save' }}
+          </button>
         </div>
       </div>
     </div>
@@ -318,6 +320,12 @@ export default {
       return text.length > 0
     }
 
+    const syncSavedSnapshot = async () => {
+      await nextTick()
+      originalTitle.value = docTitle.value
+      originalContent.value = editor.value?.getHTML() || ''
+    }
+
     const hasUnsavedChanges = computed(() => {
       if (!editor.value) return false
       
@@ -368,15 +376,17 @@ export default {
           trimmed === '<p><br></p>'
         const content = isBlank ? NEW_DOC_CONTENT : doc.content
         editor.value?.commands.setContent(content)
-        // Update originalContent to match what TipTap actually has (TipTap normalizes HTML)
-        originalContent.value = editor.value?.getHTML() || content
+        await syncSavedSnapshot()
+      } else {
+        currentDocId.value = null
+        currentPublicDocId.value = null
       }
     }
 
     const handleSave = async () => {
       if (!currentUser.value) {
         showToast('Please sign in to save', 'error')
-        return
+        return false
       }
 
       isSaving.value = true
@@ -410,13 +420,13 @@ export default {
           router.replace(`/admin?doc=${doc.id}`)
           showToast('Saved to library!')
         }
-        
-        // Update original state after successful save
-        originalTitle.value = docTitle.value
-        originalContent.value = content
+
+        await syncSavedSnapshot()
+        return true
       } catch (err) {
         console.error('Error saving document:', err)
         showToast('Failed to save', 'error')
+        return false
       } finally {
         isSaving.value = false
       }
@@ -499,31 +509,38 @@ export default {
     onBeforeRouteLeave((to) => {
       if (forceLeave.value) {
         forceLeave.value = false
-        return true // Force allow navigation
+        return true
       }
       if (hasUnsavedChanges.value && !isSaving.value) {
-        nextRoute.value = to.path + (to.query.doc ? '?doc=' + to.query.doc : '')
+        nextRoute.value = to
         pendingAction.value = null
         showUnsavedModal.value = true
-        return false // Cancel navigation, wait for user choice
-      } else {
-        return true // Allow navigation
+        return false
       }
+      return true
     })
 
     const goBack = () => {
-      if (currentDocId.value) {
-        router.push(`/read?doc=${currentDocId.value}`)
+      const docId = currentPublicDocId.value || currentDocId.value
+      if (docId) {
+        router.push(`/read?doc=${docId}`)
       } else {
         router.push('/')
       }
     }
 
-    const handleSaveAndExit = async () => {
-      await handleSave()
-      if (currentDocId.value) {
-        router.push(`/read?doc=${currentDocId.value}`)
+    const navigateToDocumentView = () => {
+      const docId = currentPublicDocId.value || currentDocId.value
+      if (docId) {
+        forceLeave.value = true
+        router.push(`/read?doc=${docId}`)
       }
+    }
+
+    const handleSaveAndExit = async () => {
+      const saved = await handleSave()
+      if (!saved) return
+      navigateToDocumentView()
     }
 
     // Unsaved changes handlers
@@ -546,32 +563,28 @@ export default {
     const discardChanges = () => {
       showUnsavedModal.value = false
       forceLeave.value = true
-      if (nextRoute.value === 'back') {
-        goBack()
-      } else if (nextRoute.value) {
-        router.push(nextRoute.value)
-      } else if (pendingAction.value) {
-        pendingAction.value()
-      }
+      const destination = nextRoute.value
+      const action = pendingAction.value
       nextRoute.value = null
       pendingAction.value = null
+
+      if (destination === 'back') {
+        goBack()
+      } else if (destination) {
+        router.push(destination)
+      } else if (action) {
+        action()
+      }
     }
 
     const saveAndContinue = async () => {
-      await handleSave()
-      // Update original content/title to match saved state
-      originalTitle.value = docTitle.value
-      originalContent.value = editor.value?.getHTML() || ''
+      const saved = await handleSave()
+      if (!saved) return
+
       showUnsavedModal.value = false
-      if (nextRoute.value === 'back') {
-        goBack()
-      } else if (nextRoute.value) {
-        router.push(nextRoute.value)
-      } else if (pendingAction.value) {
-        await pendingAction.value()
-      }
       nextRoute.value = null
       pendingAction.value = null
+      navigateToDocumentView()
     }
 
     // Note: beforeunload warning removed to prevent browser's native leave warning
@@ -593,6 +606,7 @@ export default {
       discardChanges,
       saveAndContinue,
       toggleEnlargedParagraphSpacing,
+      isSaving,
     }
   }
 }

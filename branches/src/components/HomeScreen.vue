@@ -313,11 +313,13 @@ export default {
 <style scoped>
 .home-page {
   padding: 24px 32px;
-  max-width: 1400px;
-  height: 100vh;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 /* Header */
@@ -353,6 +355,7 @@ export default {
   flex-direction: column;
   gap: 16px;
   height: 100%;
+  min-height: 0;
 }
 
 /* Scripture of Today Section (fixed height) */
@@ -675,6 +678,10 @@ export default {
   line-height: 1.3;
   padding-right: 70px;
   margin-bottom: 6px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .card-preview {
@@ -683,15 +690,19 @@ export default {
   overflow: hidden;
   white-space: pre-line;
   line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .card-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 17px;
+  font-size: 12px;
   color: #999;
   margin-top: auto;
+  flex-shrink: 0;
 }
 
 .card-author {
@@ -765,15 +776,22 @@ export default {
   background: #333;
 }
 
-/* Responsive */
-@media (max-width: 1100px) {
+/* Responsive — stack and scroll when the viewport is too small to fit the dashboard */
+@media (max-width: 1100px), (max-height: 720px) {
+  .home-page {
+    flex: none;
+    min-height: min(100%, auto);
+    overflow: visible;
+  }
+
   .main-grid {
     grid-template-columns: 1fr;
-    height: auto;
+    flex: none;
   }
 
   .left-column {
     gap: 16px;
+    height: auto;
   }
 
   .scripture-section {
@@ -781,7 +799,7 @@ export default {
   }
 
   .scripture-card {
-    min-height: 150px;
+    min-height: 120px;
   }
 
   .announcement-section {
@@ -789,18 +807,31 @@ export default {
   }
 
   .announcement-card {
-    min-height: 200px;
+    min-height: 160px;
   }
 
-  .home-page {
-    height: auto;
-    overflow: auto;
+  .right-column {
+    flex: none;
+  }
+
+  .half-section {
+    flex: none;
+    min-height: auto;
+  }
+
+  .recent-docs,
+  .saved-docs {
+    min-height: 200px;
   }
 }
 
 @media (max-width: 768px) {
   .home-page {
     padding: 16px;
+  }
+
+  .welcome h1 {
+    font-size: 22px;
   }
 
   .recent-docs {
