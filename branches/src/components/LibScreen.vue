@@ -615,6 +615,7 @@ import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../supabase'
 import { useRouter } from 'vue-router'
 import { useDatabase } from '../composables/useDatabase'
+import { DEFAULT_TAG_COLOR, TAG_COLOR_PALETTE } from '../constants/tagColorPalette'
 
 export default {
   name: 'LibScreen',
@@ -658,35 +659,17 @@ export default {
     const docToPublish = ref(null)
     const newFolderName = ref('')
     const newFolderTagName = ref('')
-    const newFolderTagColor = ref('#6b7280')
+    const newFolderTagColor = ref(DEFAULT_TAG_COLOR)
     const newPublicFolderName = ref('')
     const newPublicFolderTagName = ref('')
-    const newPublicFolderTagColor = ref('#6b7280')
+    const newPublicFolderTagColor = ref(DEFAULT_TAG_COLOR)
     const renameFolderName = ref('')
     const tagManagementFolder = ref(null)
     const tagManagementName = ref('')
-    const tagManagementColor = ref('#6b7280')
+    const tagManagementColor = ref(DEFAULT_TAG_COLOR)
     const tagManagementIsPublic = ref(false)
-    
-    // Color palette for tag selection
-    const colorPalette = [
-      '#ff6b6b', // Red
-      '#ff8c42', // Orange
-      '#f9c74f', // Amber
-      '#90be6d', // Green
-      '#43aa8b', // Cyan
-      '#4d908e', // Blue
-      '#577590', // Indigo
-      '#9B5DE5', // Violet
-      '#f15bb5', // Pink
-      '#fee440', // Gray
-      '#00BBF9', // Teal
-      '#00F5D4', // Lime
-      '#9C89B8', // Yellow
-      '#EF476F', // Orange-600
-      '#FFD166', // Purple
-      '#06D6A0', // Rose
-    ]
+
+    const colorPalette = TAG_COLOR_PALETTE
     const itemToDelete = ref(null)
     const folderToRename = ref(null)
     
@@ -1065,7 +1048,7 @@ export default {
     const openTagManagement = (folder) => {
       tagManagementFolder.value = folder
       tagManagementName.value = folder.tag_name || ''
-      tagManagementColor.value = folder.tag_color || '#6b7280'
+      tagManagementColor.value = folder.tag_color || DEFAULT_TAG_COLOR
       tagManagementIsPublic.value = false
       showTagManagementModal.value = true
       folderMenuId.value = null
@@ -1074,7 +1057,7 @@ export default {
     const openPublicTagManagement = (folder) => {
       tagManagementFolder.value = folder
       tagManagementName.value = folder.tag_name || ''
-      tagManagementColor.value = folder.tag_color || '#6b7280'
+      tagManagementColor.value = folder.tag_color || DEFAULT_TAG_COLOR
       tagManagementIsPublic.value = true
       showTagManagementModal.value = true
       publicFolderMenuId.value = null
@@ -1152,7 +1135,7 @@ export default {
         showNewFolderModal.value = false
         newFolderName.value = ''
         newFolderTagName.value = ''
-        newFolderTagColor.value = '#6b7280'
+        newFolderTagColor.value = DEFAULT_TAG_COLOR
         await loadData()
       } catch (err) {
         console.error('Create folder error:', err)
@@ -1299,7 +1282,7 @@ export default {
         showNewPublicFolderModal.value = false
         newPublicFolderName.value = ''
         newPublicFolderTagName.value = ''
-        newPublicFolderTagColor.value = '#6b7280'
+        newPublicFolderTagColor.value = DEFAULT_TAG_COLOR
         await loadData()
       } catch (err) {
         console.error('Create folder error:', err)
@@ -2342,9 +2325,9 @@ export default {
 
 /* Color Palette */
 .color-palette {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(8, 32px);
   gap: 8px;
-  flex-wrap: wrap;
   margin-top: 4px;
 }
 
@@ -2352,21 +2335,21 @@ export default {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   padding: 0;
 }
 
 .color-circle:hover {
-  transform: scale(1.15);
+  transform: scale(1.12);
 }
 
 .color-circle.active {
-  border-color: #ccc;
-  box-shadow: 0 0 0 2px white, 0 0 0 4px #ccc;
+  border-color: #fff;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(26, 26, 26, 0.25);
 }
 </style>

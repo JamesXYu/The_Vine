@@ -751,6 +751,7 @@ import {
   isPendingCalendarMember
 } from '../composables/useCalendarEvents'
 import { useCalendarDragCreate, buildWeekPeriod, getWeekStart } from '../composables/useCalendarDragCreate'
+import { DEFAULT_TAG_COLOR, TAG_COLOR_PALETTE } from '../constants/tagColorPalette'
 
 /** Default week viewport: 8am–3pm. Full day remains scrollable — do not use dayBoundaries. */
 const DEFAULT_WEEK_SCROLL_START_HOUR = 8
@@ -924,11 +925,7 @@ function truncateTagLabel(name, maxChars = TAG_LABEL_MAX_CHARS) {
   return `${text.slice(0, maxChars - 1)}…`
 }
 
-const colorPalette = [
-  '#ff6b6b', '#ff8c42', '#f9c74f', '#90be6d', '#43aa8b', '#4d908e',
-  '#577590', '#9B5DE5', '#f15bb5', '#fee440', '#00BBF9', '#00F5D4',
-  '#9C89B8', '#EF476F', '#FFD166', '#06D6A0'
-]
+const colorPalette = TAG_COLOR_PALETTE
 
 function needsEventRsvp(dbEvent, userId, tagList) {
   if (!dbEvent || !userId) return false
@@ -993,9 +990,9 @@ export default {
     let programmaticScrollGuard = 0
     const editingEventId = ref(null)
     const newCalendarName = ref('')
-    const newCalendarColor = ref('#6b7280')
+    const newCalendarColor = ref(DEFAULT_TAG_COLOR)
     const editCalendarName = ref('')
-    const editCalendarColor = ref('#6b7280')
+    const editCalendarColor = ref(DEFAULT_TAG_COLOR)
 
     const eventForm = ref({
       title: '',
@@ -1694,7 +1691,7 @@ export default {
 
     const openCreateCalendarModal = () => {
       newCalendarName.value = ''
-      newCalendarColor.value = '#6b7280'
+      newCalendarColor.value = DEFAULT_TAG_COLOR
       showCreateCalendarModal.value = true
     }
 
@@ -1730,7 +1727,7 @@ export default {
       const cal = activeCalendar.value
       if (!cal || !canManageCalendar.value) return
       editCalendarName.value = cal.name || ''
-      editCalendarColor.value = cal.color || '#6b7280'
+      editCalendarColor.value = cal.color || DEFAULT_TAG_COLOR
       showEditCalendarModal.value = true
     }
 
@@ -3789,31 +3786,32 @@ export default {
 }
 
 .color-palette {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(8, 32px);
   gap: 8px;
-  flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 .color-circle {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   padding: 0;
 }
 
 .color-circle:hover {
-  transform: scale(1.15);
+  transform: scale(1.12);
 }
 
 .color-circle.active {
-  border-color: #ccc;
-  box-shadow: 0 0 0 2px white, 0 0 0 4px #ccc;
+  border-color: #fff;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(26, 26, 26, 0.25);
 }
 
 .toggle-row {

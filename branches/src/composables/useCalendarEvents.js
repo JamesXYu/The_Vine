@@ -1,11 +1,9 @@
 import { ref } from 'vue'
 import { supabase } from '../supabase'
 import { useNotifications } from './useNotifications'
+import { TAG_COLOR_VALUES } from '../constants/tagColorPalette'
 
-const TAG_COLORS = [
-  '#667eea', '#764ba2', '#e74c3c', '#27ae60',
-  '#f39c12', '#3498db', '#9b59b6', '#1abc9c'
-]
+const TAG_COLORS = TAG_COLOR_VALUES.slice(0, 8)
 
 function pad(n) {
   return String(n).padStart(2, '0')
