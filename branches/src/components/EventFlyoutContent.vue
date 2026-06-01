@@ -132,7 +132,7 @@ export default {
   },
   emits: ['accept', 'reject', 'edit', 'delete', 'close'],
   setup(props) {
-    const eventColor = computed(() => props.qEvent?.tagColor || '#667eea')
+    const eventColor = computed(() => props.qEvent?.tagColor || 'var(--neo-accent)')
 
     const timeLabel = computed(() => formatFlyoutTime(props.qEvent, props.dbEvent))
 
@@ -159,12 +159,10 @@ export default {
 
 /* Month overlay: full callout window */
 .vine-event-callout--standalone {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.09),
-    0 6px 12px rgba(0, 0, 0, 0.12);
+  background: var(--neo-bg);
+  border: none;
+  border-radius: var(--neo-radius-lg);
+  box-shadow: var(--neo-raised-lg);
   overflow: hidden;
 }
 
@@ -186,21 +184,23 @@ export default {
 }
 
 .vine-callout-btn {
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  background: #fff;
-  color: #495057;
+  border: none;
+  border-radius: var(--neo-radius-pill);
+  background: var(--neo-bg);
+  color: var(--neo-text);
   font-size: 12px;
   font-weight: 600;
-  padding: 5px 11px;
+  padding: 6px 12px;
   cursor: pointer;
   font-family: inherit;
   line-height: 1.3;
   white-space: nowrap;
+  box-shadow: var(--neo-raised-sm);
+  transition: box-shadow 0.15s;
 }
 
 .vine-callout-btn:hover:not(:disabled) {
-  background: #f8f9fa;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .vine-callout-btn:disabled {
@@ -209,42 +209,41 @@ export default {
 }
 
 .vine-callout-btn--accept {
-  background: #1a1a1a;
-  border-color: #1a1a1a;
+  background: var(--neo-accent);
   color: #fff;
+  box-shadow: var(--neo-raised-sm), 0 0 8px rgba(232, 149, 111, 0.3);
 }
 
 .vine-callout-btn--accept:hover:not(:disabled) {
-  background: #333;
+  box-shadow: var(--neo-inset-sm), 0 0 6px rgba(232, 149, 111, 0.25);
 }
 
 .vine-callout-btn--reject {
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .vine-callout-btn--delete {
   color: #c0392b;
-  border-color: #f5c6cb;
 }
 
 .vine-callout-btn--delete:hover:not(:disabled) {
-  background: #fff5f5;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .vine-callout-btn--close {
   flex-shrink: 0;
   font-size: 20px;
   line-height: 1;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border: none;
-  color: #6c757d;
-  background: transparent;
+  color: var(--neo-text-muted);
+  background: var(--neo-bg);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .vine-callout-btn--close:hover:not(:disabled) {
-  background: #f0f0f0;
-  color: #1a1a1a;
-  border-radius: 6px;
+  color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .vine-event-callout__body {
@@ -263,13 +262,14 @@ export default {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .vine-event-callout__title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   line-height: 1.35;
   word-break: break-word;
 }
@@ -277,19 +277,19 @@ export default {
 .vine-event-callout__meta {
   margin: 0 0 4px;
   font-size: 13px;
-  color: #495057;
+  color: var(--neo-text-muted);
   line-height: 1.4;
 }
 
 .vine-event-callout__meta--muted {
-  color: #6c757d;
+  color: var(--neo-text-muted);
   font-size: 12px;
 }
 
 .vine-event-callout__description {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #495057;
+  color: var(--neo-text);
   line-height: 1.45;
   white-space: pre-wrap;
 }
@@ -298,18 +298,18 @@ export default {
   margin: 10px 0 0;
   font-size: 12px;
   font-weight: 600;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .vine-event-callout__rsvp.is-pending {
-  color: #b45309;
+  color: var(--neo-accent-bright);
 }
 
 .vine-event-callout__rsvp.is-accepted {
-  color: #059669;
+  color: #6aab8e;
 }
 
 .vine-event-callout__rsvp.is-rejected {
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 </style>

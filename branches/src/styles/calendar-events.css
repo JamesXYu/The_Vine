@@ -1,0 +1,67 @@
+/* Calendar event chips — global so Qalendar + <button> month events pick up styles */
+
+.calendar-page .vine-week-event,
+.calendar-page .calendar-month__event.is-event {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.calendar-page .vine-week-event:hover,
+.calendar-page .calendar-month__event.is-event:hover {
+  box-shadow:
+    9px 9px 16px rgba(163, 177, 198, 0.6),
+    -9px -9px 16px rgba(255, 255, 255, 0.55) !important;
+  transform: translateY(-1px);
+}
+
+.calendar-page .vine-week-event.is-rsvp-pending,
+.calendar-page .calendar-month__event.is-event.is-rsvp-pending {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--event-accent, #e8956f) 10%, #e0e5ec),
+    color-mix(in srgb, var(--event-accent, #e8956f) 10%, #e0e5ec) 4px,
+    color-mix(in srgb, var(--event-accent, #e8956f) 20%, #e0e5ec) 4px,
+    color-mix(in srgb, var(--event-accent, #e8956f) 20%, #e0e5ec) 8px
+  ) !important;
+  box-shadow: inset 5px 5px 10px rgba(163, 177, 198, 0.5),
+    inset -5px -5px 10px rgba(255, 255, 255, 0.5) !important;
+}
+
+.calendar-page .vine-week-event.is-rsvp-rejected,
+.calendar-page .calendar-month__event.is-event.is-rsvp-rejected {
+  background: #e0e5ec !important;
+  border-left-color: #6c7a89 !important;
+  box-shadow: inset 5px 5px 10px rgba(163, 177, 198, 0.5),
+    inset -5px -5px 10px rgba(255, 255, 255, 0.5) !important;
+  opacity: 0.8;
+}
+
+.calendar-page .calendar-month__event.is-event.is-rsvp-rejected .calendar-month__event-title,
+.calendar-page .vine-week-event.is-rsvp-rejected .vine-week-event__title {
+  text-decoration: line-through;
+  color: #6c7a89;
+}
+
+.calendar-page .calendar-month__event.is-event .calendar-month__event-title {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--event-accent, #e8956f) 45%, #2d3436);
+}
+
+.calendar-page .calendar-month__event.is-event .calendar-month__event-time {
+  color: #6c7a89;
+  font-weight: 500;
+}
+
+/* Qalendar week wrapper: keep custom chip visible */
+.calendar-page .calendar-wrapper .calendar-week__event {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.calendar-page .calendar-wrapper .calendar-week__event .calendar-week__event-info-wrapper {
+  padding: 2px !important;
+  height: 100%;
+}

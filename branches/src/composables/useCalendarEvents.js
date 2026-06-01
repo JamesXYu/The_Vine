@@ -104,9 +104,34 @@ function sortMembersForDisplay(rows) {
   })
 }
 
+const NEO_BG = '#e0e5ec'
+
+function resolveEventAccent(color) {
+  if (!color || typeof color !== 'string') return '#e8956f'
+  if (color.startsWith('var(')) return '#e8956f'
+  return color
+}
+
 export function eventResponseStyle(baseColor) {
   return {
-    '--event-accent': baseColor || '#667eea'
+    '--event-accent': resolveEventAccent(baseColor)
+  }
+}
+
+/** Inline + CSS-variable styles for neomorphic calendar event chips */
+export function neoEventChipStyle(accentColor) {
+  const accent = resolveEventAccent(accentColor)
+  return {
+    '--event-accent': accent,
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    border: 'none',
+    borderLeft: `4px solid ${accent}`,
+    background: `color-mix(in srgb, ${accent} 24%, ${NEO_BG})`,
+    borderRadius: '8px',
+    boxShadow:
+      '5px 5px 10px rgba(163, 177, 198, 0.55), -5px -5px 10px rgba(255, 255, 255, 0.55)',
+    color: '#2d3436'
   }
 }
 
@@ -877,7 +902,7 @@ export function useCalendarEvents() {
     for (const tag of tagList || []) {
       schemes[slugifyTag(tag.name)] = {
         color: '#fff',
-        backgroundColor: tag.color || '#667eea'
+        backgroundColor: tag.color || '#e8956f'
       }
     }
     return schemes

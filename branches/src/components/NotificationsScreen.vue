@@ -338,6 +338,7 @@ export default {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background-color: var(--neo-bg);
 }
 
 .notifications-header {
@@ -346,7 +347,7 @@ export default {
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: none;
   flex-shrink: 0;
 }
 
@@ -359,30 +360,31 @@ export default {
 .notifications-header h1 {
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin: 0;
 }
 
 .mark-all-read-btn {
-  background: none;
+  background: var(--neo-bg);
   border: none;
-  color: #667eea;
+  color: var(--neo-accent);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  padding: 8px 16px;
-  border-radius: 6px;
-  transition: background-color 0.2s;
+  padding: 10px 18px;
+  border-radius: var(--neo-radius-pill);
+  transition: box-shadow 0.2s;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .mark-all-read-btn:hover {
-  background-color: rgba(102, 126, 234, 0.1);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .notifications-loading {
   padding: 48px;
   text-align: center;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .notification-section {
@@ -403,31 +405,32 @@ export default {
 .section-head h2 {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin: 0;
 }
 
 .section-count {
   font-size: 12px;
   font-weight: 600;
-  color: #6c757d;
-  background: #f0f0f0;
-  padding: 2px 8px;
-  border-radius: 10px;
+  color: var(--neo-text-muted);
+  background: var(--neo-bg);
+  padding: 4px 10px;
+  border-radius: var(--neo-radius-pill);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .section-empty {
   font-size: 14px;
-  color: #adb5bd;
+  color: var(--neo-text-muted);
   margin: 0;
   padding: 8px 0;
 }
 
 .notifications-list {
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e9ecef;
+  background-color: var(--neo-bg);
+  border-radius: var(--neo-radius);
+  box-shadow: var(--neo-raised);
+  border: none;
   overflow: hidden;
 }
 
@@ -436,9 +439,9 @@ export default {
   align-items: flex-start;
   gap: 16px;
   padding: 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: none;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: box-shadow 0.2s;
 }
 
 .notification-item:last-child {
@@ -446,11 +449,11 @@ export default {
 }
 
 .notification-item:hover {
-  background-color: #f8f9fa;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .notification-item.unread {
-  background-color: #f0f4ff;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .notification-item.unread .notification-title {
@@ -458,17 +461,17 @@ export default {
 }
 
 .notification-item.requires-action {
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid var(--neo-accent);
 }
 
 .notification-item.requires-action.unread {
-  background-color: #fffbeb;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .notification-action-hint {
   margin: 6px 0 0;
   font-size: 12px;
-  color: #b45309;
+  color: var(--neo-accent);
   line-height: 1.35;
 }
 
@@ -479,23 +482,22 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  color: #6c757d;
+  border-radius: 12px;
+  color: var(--neo-text-muted);
+  background: var(--neo-bg);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .icon-notes {
-  background: #eef2ff;
-  color: #667eea;
+  color: var(--neo-accent);
 }
 
 .icon-announcement {
-  background: #fff4e6;
-  color: #f39c12;
+  color: var(--neo-accent-bright);
 }
 
 .icon-calendar {
-  background: #e8f8f0;
-  color: #27ae60;
+  color: #6aab8e;
 }
 
 .notification-content {
@@ -506,31 +508,32 @@ export default {
 .notification-title {
   font-size: 15px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--neo-text);
   line-height: 1.4;
   margin-bottom: 4px;
 }
 
 .notification-time {
   font-size: 13px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .notification-empty {
   padding: 48px 20px;
   text-align: center;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   font-size: 15px;
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #e9ecef;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius);
+  border: none;
+  box-shadow: var(--neo-raised);
 }
 
 /* Detail modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(163, 177, 198, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -539,13 +542,14 @@ export default {
 }
 
 .notification-detail-modal {
-  background: white;
-  border-radius: 14px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius-lg);
   width: 100%;
   max-width: 440px;
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neo-raised-lg);
+  border: none;
 }
 
 .detail-header {
@@ -553,7 +557,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: none;
 }
 
 .detail-badge {
@@ -566,34 +570,38 @@ export default {
 }
 
 .badge-notes {
-  background: #eef2ff;
-  color: #667eea;
+  background: var(--neo-bg);
+  color: var(--neo-accent);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .badge-announcement {
-  background: #fff4e6;
-  color: #e67e22;
+  background: var(--neo-bg);
+  color: var(--neo-accent-bright);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .badge-calendar {
-  background: #e8f8f0;
-  color: #27ae60;
+  background: var(--neo-bg);
+  color: #6aab8e;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .detail-close {
-  background: none;
+  background: var(--neo-bg);
   border: none;
   font-size: 24px;
   line-height: 1;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 6px 12px;
+  border-radius: 50%;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .detail-close:hover {
-  background: #f0f0f0;
-  color: #1a1a1a;
+  box-shadow: var(--neo-inset-sm);
+  color: var(--neo-text);
 }
 
 .detail-body {
@@ -603,14 +611,14 @@ export default {
 .detail-body h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin: 0 0 8px;
   line-height: 1.35;
 }
 
 .detail-time {
   font-size: 13px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin: 0 0 16px;
 }
 
@@ -627,19 +635,19 @@ export default {
 
 .detail-meta dt {
   font-weight: 500;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   min-width: 72px;
   margin: 0;
 }
 
 .detail-meta dd {
   margin: 0;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .detail-preview {
   font-size: 14px;
-  color: #495057;
+  color: var(--neo-text);
   line-height: 1.5;
   margin: 0 0 20px;
   white-space: pre-wrap;
@@ -647,7 +655,7 @@ export default {
 
 .detail-hint {
   font-size: 13px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin: 0 0 16px;
   line-height: 1.45;
 }
@@ -663,17 +671,18 @@ export default {
   width: 100%;
   padding: 12px 16px;
   border: none;
-  border-radius: 8px;
-  background: #1a1a1a;
+  border-radius: var(--neo-radius-pill);
+  background: var(--neo-accent);
   color: white;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: box-shadow 0.2s;
+  box-shadow: var(--neo-raised-sm), 0 0 12px rgba(232, 149, 111, 0.35);
 }
 
 .detail-action:hover {
-  background: #333;
+  box-shadow: var(--neo-inset-sm), 0 0 8px rgba(232, 149, 111, 0.25);
 }
 
 .detail-invite-actions {
@@ -684,32 +693,34 @@ export default {
 
 .btn-secondary {
   padding: 10px 18px;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  background: white;
-  color: #495057;
+  border: none;
+  border-radius: var(--neo-radius-pill);
+  background: var(--neo-bg);
+  color: var(--neo-text);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #f8f9fa;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .btn-primary {
   padding: 10px 18px;
   border: none;
-  border-radius: 8px;
-  background: #1a1a1a;
+  border-radius: var(--neo-radius-pill);
+  background: var(--neo-accent);
   color: white;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+  box-shadow: var(--neo-raised-sm), 0 0 10px rgba(232, 149, 111, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #333;
+  box-shadow: var(--neo-inset-sm), 0 0 8px rgba(232, 149, 111, 0.25);
 }
 
 .btn-primary:disabled,

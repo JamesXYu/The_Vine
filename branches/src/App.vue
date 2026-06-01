@@ -19,6 +19,7 @@
       </div>
 
       <nav class="sidebar-nav">
+        <div class="nav-group">
         <router-link to="/home" class="nav-btn" :class="{ active: $route.name === 'home' }">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -78,6 +79,7 @@
           </svg>
           Settings
         </router-link>
+        </div>
       </nav>
 
       <div class="sidebar-footer">
@@ -205,6 +207,8 @@ export default {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--neo-bg);
+  color: var(--neo-text);
 }
 
 .loading-screen {
@@ -212,15 +216,16 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #f8f9fa;
+  background-color: var(--neo-bg);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #e9ecef;
-  border-top-color: #1a1a1a;
+  border: 3px solid rgba(163, 177, 198, 0.35);
+  border-top-color: var(--neo-accent);
   border-radius: 50%;
+  background: transparent;
   animation: spin 0.8s linear infinite;
 }
 
@@ -231,7 +236,7 @@ body {
 .app-layout {
   display: flex;
   height: 100vh;
-  background-color: #f8f9fa;
+  background-color: var(--neo-bg);
 }
 
 /* Sidebar */
@@ -241,12 +246,14 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  background-color: #fff;
-  border-right: 1px solid #e9ecef;
+  background-color: var(--neo-bg);
+  border-right: none;
+  box-shadow: var(--neo-raised-sm);
   display: flex;
   flex-direction: column;
   padding: 24px 16px;
   overflow-y: auto;
+  z-index: 10;
 }
 
 .sidebar-header {
@@ -262,57 +269,75 @@ body {
 .logo-icon {
   width: 36px;
   height: 36px;
-  background-color: #1a1a1a;
-  border-radius: 10px;
+  background-color: var(--neo-bg);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--neo-accent);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .logo-text {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   flex: 1;
+  min-height: 0;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius-lg);
+  box-shadow: var(--neo-inset);
 }
 
 .nav-btn {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 12px 14px;
   border: none;
-  background: none;
-  border-radius: 10px;
-  color: #6c757d;
+  background: transparent;
+  border-radius: var(--neo-radius-md);
+  color: var(--neo-text-muted);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s, color 0.2s, background 0.2s;
   text-decoration: none;
+  box-shadow: none;
 }
 
-.nav-btn:hover {
-  background-color: #f8f9fa;
-  color: #1a1a1a;
+.nav-btn:hover:not(.active) {
+  color: var(--neo-text);
+  background: rgba(163, 177, 198, 0.08);
 }
 
 .nav-btn.active {
-  background-color: #1a1a1a;
-  color: white;
+  background: var(--neo-bg);
+  color: var(--neo-accent);
+  font-weight: 600;
+  box-shadow: var(--neo-raised-sm);
+}
+
+.nav-group .notification-container {
+  display: block;
 }
 
 .sidebar-footer {
   margin-top: auto;
   padding-top: 24px;
-  border-top: 1px solid #e9ecef;
+  border-top: none;
 }
 
 .user-card {
@@ -326,13 +351,14 @@ body {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--neo-accent) 0%, var(--neo-accent-bright) 100%);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .user-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -341,25 +367,25 @@ body {
 
 .user-role {
   font-size: 12px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .logout-btn {
   padding: 8px 16px;
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  color: #6c757d;
+  background-color: var(--neo-bg);
+  border: none;
+  border-radius: var(--neo-radius-pill);
+  color: var(--neo-text-muted);
   font-size: 12px;
   cursor: pointer;
   width: 100%;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s, color 0.2s;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .logout-btn:hover {
-  background-color: #e74c3c;
-  border-color: #e74c3c;
-  color: white;
+  color: #c0392b;
+  box-shadow: var(--neo-inset-sm);
 }
 
 /* Main Content */
@@ -391,9 +417,10 @@ body {
   right: 16px;
   width: 8px;
   height: 8px;
-  background-color: #e74c3c;
+  background-color: var(--neo-accent);
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--neo-bg);
+  box-shadow: 0 0 6px rgba(232, 149, 111, 0.6);
 }
 
 .notification-panel {
@@ -401,10 +428,10 @@ body {
   top: 100%;
   left: 0;
   width: 360px;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e9ecef;
+  background-color: var(--neo-bg);
+  border-radius: var(--neo-radius);
+  box-shadow: var(--neo-raised-lg);
+  border: none;
   z-index: 1000;
   margin-top: 8px;
   overflow: hidden;
@@ -415,31 +442,32 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid #e9ecef;
-  background-color: #f8f9fa;
+  border-bottom: none;
+  background-color: var(--neo-bg);
 }
 
 .notification-header h3 {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin: 0;
 }
 
 .mark-all-read-btn {
-  background: none;
+  background: var(--neo-bg);
   border: none;
-  color: #667eea;
+  color: var(--neo-accent);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  padding: 6px 12px;
+  border-radius: var(--neo-radius-pill);
+  transition: box-shadow 0.2s;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .mark-all-read-btn:hover {
-  background-color: rgba(102, 126, 234, 0.1);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .notification-list {
@@ -452,17 +480,17 @@ body {
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: none;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: box-shadow 0.2s;
 }
 
 .notification-item:hover {
-  background-color: #f8f9fa;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .notification-item.unread {
-  background-color: #f8f9fa;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .notification-icon {
@@ -472,7 +500,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .notification-content {
@@ -483,20 +511,20 @@ body {
 .notification-title {
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--neo-text);
   line-height: 1.4;
   margin-bottom: 4px;
 }
 
 .notification-time {
   font-size: 11px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .notification-empty {
   padding: 32px 16px;
   text-align: center;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   font-size: 13px;
 }
 </style>

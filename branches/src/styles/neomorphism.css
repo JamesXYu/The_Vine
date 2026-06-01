@@ -1,0 +1,117 @@
+:root {
+  --neo-bg: #e0e5ec;
+  --neo-surface: #e0e5ec;
+  --neo-bg-light: color-mix(in srgb, #ffffff 42%, #e0e5ec);
+  --neo-bg-tray: color-mix(in srgb, #a3b1c6 10%, #e0e5ec);
+  --neo-text: #2d3436;
+  --neo-text-muted: #6c7a89;
+  --neo-accent: #e8956f;
+  --neo-accent-bright: #ffb800;
+  --neo-shadow-dark: #a3b1c6;
+  --neo-shadow-light: #ffffff;
+  --neo-raised: 9px 9px 16px rgba(163, 177, 198, 0.6), -9px -9px 16px rgba(255, 255, 255, 0.5);
+  --neo-raised-sm: 5px 5px 10px rgba(163, 177, 198, 0.5), -5px -5px 10px rgba(255, 255, 255, 0.5);
+  --neo-raised-lg: 12px 12px 24px rgba(163, 177, 198, 0.55), -12px -12px 24px rgba(255, 255, 255, 0.55);
+  --neo-inset: inset 9px 9px 16px rgba(163, 177, 198, 0.6), inset -9px -9px 16px rgba(255, 255, 255, 0.5);
+  --neo-inset-sm: inset 5px 5px 10px rgba(163, 177, 198, 0.5), inset -5px -5px 10px rgba(255, 255, 255, 0.5);
+  --neo-radius: 14px;
+  --neo-radius-md: 10px;
+  --neo-radius-sm: 8px;
+  --neo-radius-lg: 16px;
+  --neo-radius-pill: 999px;
+}
+
+body {
+  background-color: var(--neo-bg);
+  color: var(--neo-text);
+}
+
+/* Shared page shells */
+.home-page,
+.library-page,
+.calendar-page,
+.read-page,
+.saved-page,
+.settings-page,
+.editor-page,
+.notifications-page {
+  background-color: var(--neo-bg);
+}
+
+/* Raised cards and panels */
+.preview-card,
+.announcement-card,
+.scripture-card,
+.doc-card,
+.note-card,
+.saved-card,
+.settings-card,
+.admin-card,
+.modal-content,
+.event-modal,
+.share-modal,
+.calendar-toolbar,
+.cal-sidebar-panel {
+  box-shadow: var(--neo-raised);
+  border: none !important;
+}
+
+.preview-card:hover {
+  box-shadow: var(--neo-raised-lg);
+  transform: translateY(-2px);
+}
+
+/* Inset inputs and search fields */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+textarea,
+.search-input,
+.toolbar-search {
+  background: var(--neo-bg) !important;
+  border: none !important;
+  box-shadow: var(--neo-inset-sm);
+}
+
+input:focus,
+textarea:focus,
+.search-input:focus {
+  outline: none;
+  box-shadow: var(--neo-inset-sm), 0 0 0 2px rgba(232, 149, 111, 0.2) !important;
+}
+
+/* Primary actions */
+.btn-primary,
+.primary-btn,
+.submit-btn,
+.detail-action {
+  background-color: var(--neo-accent) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: var(--neo-radius-pill) !important;
+  box-shadow: var(--neo-raised-sm), 0 0 10px rgba(232, 149, 111, 0.3);
+}
+
+.btn-primary:hover:not(:disabled),
+.primary-btn:hover:not(:disabled) {
+  box-shadow: var(--neo-inset-sm), 0 0 8px rgba(232, 149, 111, 0.25) !important;
+}
+
+/* Secondary / ghost buttons */
+.btn-secondary,
+.ghost-btn {
+  background: var(--neo-bg) !important;
+  border: none !important;
+  color: var(--neo-text) !important;
+  box-shadow: var(--neo-raised-sm);
+  border-radius: var(--neo-radius-pill) !important;
+}
+
+/* Modal overlays */
+.modal-overlay {
+  background: rgba(163, 177, 198, 0.4) !important;
+}

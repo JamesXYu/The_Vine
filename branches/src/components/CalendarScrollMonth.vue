@@ -75,7 +75,7 @@ import {
   prependScrollMonthWeeks,
   appendScrollMonthWeeks
 } from '../composables/useScrollMonthWeeks'
-import { eventResponseStyle } from '../composables/useCalendarEvents'
+import { neoEventChipStyle } from '../composables/useCalendarEvents'
 
 export default {
   name: 'CalendarScrollMonth',
@@ -115,11 +115,11 @@ export default {
 
     const monthEventStyle = (event) => {
       const scheme = props.colorSchemes?.[event?.colorScheme]
-      const bg = scheme?.backgroundColor || event?.tagColor || '#667eea'
-      const styled = eventResponseStyle(bg)
+      const bg = scheme?.backgroundColor || event?.tagColor
+      const chip = neoEventChipStyle(bg)
       return {
-        '--63a9bc8a': styled['--event-accent'],
-        ...styled
+        '--63a9bc8a': chip['--event-accent'],
+        ...chip
       }
     }
 
@@ -295,8 +295,8 @@ export default {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-top: 1px solid #e9ecef;
+  background: var(--neo-bg);
+  border-top: none;
 }
 
 .calendar-scroll-month__day-names {
@@ -304,8 +304,8 @@ export default {
   grid-template-columns: repeat(7, 1fr);
   flex: 0 0 auto;
   flex-shrink: 0;
-  border-bottom: 1px solid #e9ecef;
-  background: #fff;
+  border-bottom: none;
+  background: var(--neo-bg);
 }
 
 .calendar-scroll-month__day-name {
@@ -313,7 +313,7 @@ export default {
   text-align: center;
   font-size: 11px;
   font-weight: 600;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -340,7 +340,7 @@ export default {
   height: var(--week-row-height, 100px);
   scroll-snap-align: start;
   scroll-snap-stop: always;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: none;
 }
 
 .calendar-scroll-month__day {
@@ -349,7 +349,7 @@ export default {
   align-items: stretch;
   min-height: 0;
   padding: 4px 3px 6px;
-  border-right: 1px solid #e9ecef;
+  border-right: none;
   overflow: hidden;
   cursor: default;
 }
@@ -365,14 +365,14 @@ export default {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: #fff;
   font-weight: 700;
 }
 
 .calendar-scroll-month__day-num {
   font-size: 12px;
-  color: #495057;
+  color: var(--neo-text-muted);
   line-height: 22px;
   margin-bottom: 2px;
   flex-shrink: 0;
@@ -386,81 +386,40 @@ export default {
   overflow: hidden;
 }
 
-.calendar-scroll-month__day :deep(.calendar-month__event) {
-  --event-accent: #667eea;
+.calendar-month__event.is-event {
   display: flex;
   align-items: center;
   gap: 5px;
   width: 100%;
   margin: 0;
-  padding: 3px 6px 3px 7px;
-  border-radius: 5px;
+  padding: 4px 8px 4px 9px;
   font-size: 10px;
   line-height: 1.25;
-  text-align: left;
-  cursor: pointer;
   overflow: hidden;
   box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--event-accent) 18%, transparent);
-  border-left: 2px solid var(--event-accent);
-  background: color-mix(in srgb, var(--event-accent) 10%, #fff);
-  color: #1a1a1a;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.15s ease;
 }
 
-.calendar-scroll-month__day :deep(.calendar-month__event:hover) {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
-}
-
-.calendar-scroll-month__day :deep(.calendar-month__event.is-rsvp-pending) {
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      color-mix(in srgb, var(--event-accent) 5%, #fff),
-      color-mix(in srgb, var(--event-accent) 5%, #fff) 3px,
-      color-mix(in srgb, var(--event-accent) 11%, #fff) 3px,
-      color-mix(in srgb, var(--event-accent) 11%, #fff) 6px
-    );
-  border-style: dashed;
-  border-left-style: solid;
-}
-
-.calendar-scroll-month__day :deep(.calendar-month__event.is-rsvp-rejected) {
-  background: #f1f3f5;
-  border-color: #e9ecef;
-  border-left-color: #ced4da;
-  opacity: 0.7;
-}
-
-.calendar-scroll-month__day :deep(.calendar-month__event-time) {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 500;
-  color: #6c757d;
-}
-
-.calendar-scroll-month__day :deep(.calendar-month__event-color) {
+.calendar-month__event-color {
   display: none;
 }
 
-.calendar-scroll-month__day :deep(.calendar-month__event-title) {
+.calendar-month__event-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--event-accent) 50%, #1a1a1a);
+  flex: 1;
+  min-width: 0;
 }
 
-.calendar-scroll-month__day :deep(.calendar-month__event.is-rsvp-rejected .calendar-month__event-title) {
-  text-decoration: line-through;
-  color: #868e96;
+.calendar-month__event-time {
+  flex-shrink: 0;
+  font-size: 9px;
 }
 
 .calendar-scroll-month__more {
   border: none;
   background: transparent;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   font-size: 10px;
   padding: 0 4px;
   text-align: left;
@@ -468,6 +427,6 @@ export default {
 }
 
 .calendar-scroll-month__more:hover {
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 </style>

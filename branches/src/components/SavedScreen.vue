@@ -190,6 +190,7 @@ export default {
   padding: 32px 48px;
   min-height: 100vh;
   width: 100%;
+  background-color: var(--neo-bg);
 }
 
 /* Header */
@@ -200,13 +201,13 @@ export default {
 .header-left h1 {
   font-size: 28px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 4px;
 }
 
 .subtitle {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 /* Empty State */
@@ -228,13 +229,13 @@ export default {
 .empty-state h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 8px;
 }
 
 .empty-state p {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin-bottom: 24px;
 }
 
@@ -243,7 +244,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border: none;
   border-radius: 10px;
@@ -255,7 +256,7 @@ export default {
 }
 
 .btn-primary:hover {
-  background: #333;
+  background: var(--neo-accent);
 }
 
 /* Saved List */
@@ -272,11 +273,11 @@ export default {
   padding: 20px 24px;
   cursor: pointer;
   transition: all 0.15s;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: none;
 }
 
 .saved-doc-item:hover {
-  background: #f8f9fa;
+  background: var(--neo-bg);
 }
 
 .saved-doc-item:last-child {
@@ -305,7 +306,7 @@ export default {
 .doc-title {
   font-size: 17px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--neo-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -361,12 +362,12 @@ export default {
   bottom: 32px;
   right: 32px;
   padding: 14px 24px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neo-raised);
   animation: slideIn 0.3s ease;
   z-index: 1001;
 }

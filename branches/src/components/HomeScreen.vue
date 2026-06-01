@@ -320,6 +320,7 @@ export default {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background-color: var(--neo-bg);
 }
 
 /* Header */
@@ -331,13 +332,13 @@ export default {
 .welcome h1 {
   font-size: 28px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 4px;
 }
 
 .subtitle {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 /* Main Grid Layout (fills remaining height) */
@@ -366,10 +367,11 @@ export default {
 }
 
 .scripture-card {
-  background: linear-gradient(145deg, rgba(248, 246, 243, 0.8) 0%, rgba(240, 237, 232, 0.8) 100%);
-  border-radius: 20px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius);
   padding: 20px;
-  border: 1px solid #e8e0d4;
+  border: none;
+  box-shadow: var(--neo-raised);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -421,10 +423,10 @@ export default {
 }
 
 .announcement-card {
-  background: white;
+  background: var(--neo-bg);
   border-radius: 20px;
   padding: 28px;
-  border: 1px solid #f0f0f0;
+  border: none;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -440,7 +442,7 @@ export default {
 .announcement-title {
   font-size: 22px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 14px;
 }
 
@@ -455,7 +457,7 @@ export default {
 .announcement-meta {
   margin-top: 18px;
   padding-top: 18px;
-  border-top: 1px solid #f0f0f0;
+  border-top: none;
 }
 
 .announcement-date {
@@ -523,13 +525,14 @@ export default {
 /* Preview Card Base (reduced padding) */
 .preview-card {
   position: relative;
-  background: white;
-  border-radius: 14px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius);
   padding: 20px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
   overflow: hidden;
-  border: 1px solid #f0f0f0;
+  border: none;
+  box-shadow: var(--neo-raised);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -541,7 +544,7 @@ export default {
   left: 0;
   right: 0;
   height: 3px;
-  background: #2d2d2d;
+  background: var(--neo-accent);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.3s ease;
@@ -549,8 +552,7 @@ export default {
 
 .preview-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
-  border-color: #e0e0e0;
+  box-shadow: var(--neo-raised-lg);
 }
 
 .preview-card:hover .card-accent {
@@ -674,7 +676,7 @@ export default {
 /* Card Content */
 .card-title {
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--neo-text);
   line-height: 1.3;
   padding-right: 70px;
   margin-bottom: 6px;
@@ -734,7 +736,7 @@ export default {
 .empty-state {
   text-align: center;
   padding: 80px 40px;
-  background: white;
+  background: var(--neo-bg);
   border-radius: 20px;
 }
 
@@ -746,13 +748,13 @@ export default {
 .empty-state h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 8px;
 }
 
 .empty-state p {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin-bottom: 24px;
 }
 
@@ -761,7 +763,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border: none;
   border-radius: 10px;
@@ -773,7 +775,7 @@ export default {
 }
 
 .btn-primary:hover {
-  background: #333;
+  background: var(--neo-accent);
 }
 
 /* Responsive — stack and scroll when the viewport is too small to fit the dashboard */

@@ -135,8 +135,9 @@
       <!-- Empty State -->
       <div v-if="currentFoldersInView.length === 0 && currentDocsInView.length === 0" class="empty-state">
         <div class="empty-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 9h6l1.5-2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9z"/>
+            <path d="M4 9V7a2 2 0 0 1 2-2h4l2 2"/>
           </svg>
         </div>
         <h3 v-if="currentFolder">{{ currentFolder }} is empty</h3>
@@ -165,9 +166,13 @@
             @dragleave="handleDragLeave"
             @drop="handleDropOnFolder($event, folder)"
           >
-            <div class="item-icon-large folder-icon" :style="{ color: folder.tag_color || '#c0c0c0' }">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            <div
+              class="item-icon-large folder-icon"
+              :style="{ color: folder.tag_color || 'var(--neo-accent)' }"
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 9h6l1.5-2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9z"/>
+                <path d="M4 9V7a2 2 0 0 1 2-2h4l2 2"/>
               </svg>
             </div>
             <div class="item-name">{{ folder.displayName }}</div>
@@ -201,11 +206,11 @@
             @dragend="handleDragEnd"
           >
             <div class="item-icon-large doc-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 4h7l4 4v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+                <path d="M15 4v4h4"/>
+                <line x1="9" y1="12" x2="15" y2="12"/>
+                <line x1="9" y1="16" x2="13" y2="16"/>
               </svg>
             </div>
             <div class="item-name">{{ doc.title }}</div>
@@ -316,10 +321,11 @@
 
       <div v-if="currentPublicFoldersInView.length === 0 && currentPublicDocsInView.length === 0" class="empty-state">
         <div class="empty-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 4h7l4 4v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+            <path d="M15 4v4h4"/>
+            <line x1="9" y1="12" x2="15" y2="12"/>
+            <line x1="9" y1="16" x2="13" y2="16"/>
           </svg>
         </div>
         <h3>Public library is empty</h3>
@@ -340,9 +346,13 @@
             @dragleave="handleDragLeave"
             @drop="handleDropOnFolder($event, folder)"
           >
-            <div class="item-icon-large folder-icon" :style="{ color: folder.tag_color || '#c0c0c0' }">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            <div
+              class="item-icon-large folder-icon"
+              :style="{ color: folder.tag_color || 'var(--neo-accent)' }"
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 9h6l1.5-2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9z"/>
+                <path d="M4 9V7a2 2 0 0 1 2-2h4l2 2"/>
               </svg>
             </div>
             <div class="item-name">{{ folder.displayName }}</div>
@@ -376,9 +386,11 @@
             @dragend="handleDragEnd"
           >
             <div class="item-icon-large doc-icon public">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 4h7l4 4v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+                <path d="M15 4v4h4"/>
+                <line x1="9" y1="12" x2="15" y2="12"/>
+                <line x1="9" y1="16" x2="13" y2="16"/>
               </svg>
             </div>
             <div class="item-name">{{ doc.title }}</div>
@@ -1577,6 +1589,7 @@ export default {
   padding: 24px 32px;
   min-height: 100vh;
   box-sizing: border-box;
+  background-color: var(--neo-bg);
 }
 
 /* Header */
@@ -1590,13 +1603,13 @@ export default {
 .header-left h1 {
   font-size: 28px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 4px;
 }
 
 .subtitle {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .header-actions {
@@ -1614,17 +1627,18 @@ export default {
 .search-box input {
   width: 240px;
   padding: 10px 16px 10px 40px;
-  border: 1px solid #e9ecef;
-  border-radius: 24px;
+  border: none;
+  border-radius: var(--neo-radius-pill);
   font-size: 14px;
-  background: white;
+  background: var(--neo-bg);
   outline: none;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .search-box input:focus {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+  border-color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm), 0 0 0 2px rgba(232, 149, 111, 0.2);
 }
 
 .search-icon {
@@ -1639,9 +1653,10 @@ export default {
   gap: 8px;
   margin-bottom: 24px;
   padding: 6px;
-  background: #f5f5f5;
-  border-radius: 14px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius);
   width: fit-content;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .tab {
@@ -1660,13 +1675,13 @@ export default {
 }
 
 .tab:hover {
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .tab.active {
-  background: white;
-  color: #1a1a1a;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .tab-count {
@@ -1678,7 +1693,7 @@ export default {
 }
 
 .tab.active .tab-count {
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
 }
 
@@ -1711,11 +1726,11 @@ export default {
 
 .breadcrumb-item:hover {
   background: #f0f0f0;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .breadcrumb-item.active {
-  color: #1a1a1a;
+  color: var(--neo-text);
   font-weight: 500;
   background: #f0f0f0;
 }
@@ -1751,7 +1766,7 @@ export default {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: #f5f5f5;
+  background: var(--neo-bg);
   border-radius: 10px;
 }
 
@@ -1768,13 +1783,13 @@ export default {
 }
 
 .sort-btn:hover {
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .sort-btn.active {
-  background: white;
-  color: #1a1a1a;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  box-shadow: var(--neo-raised-sm);
 }
 
 /* View Toggle */
@@ -1782,7 +1797,7 @@ export default {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: #f5f5f5;
+  background: var(--neo-bg);
   border-radius: 10px;
 }
 
@@ -1802,38 +1817,47 @@ export default {
 }
 
 .view-btn:hover {
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .view-btn.active {
-  background: white;
-  color: #1a1a1a;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  box-shadow: var(--neo-raised-sm);
 }
 
 /* Empty State */
 .empty-state {
   text-align: center;
   padding: 80px 40px;
-  background: white;
-  border-radius: 20px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius-lg);
+  box-shadow: var(--neo-raised);
 }
 
 .empty-icon {
-  margin-bottom: 20px;
-  color: #ccc;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: var(--neo-bg);
+  box-shadow: var(--neo-inset);
+  color: var(--neo-accent);
 }
 
 .empty-state h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 8px;
 }
 
 .empty-state p {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin-bottom: 24px;
 }
 
@@ -1870,12 +1894,12 @@ export default {
   justify-content: flex-start;
   padding: 12px 16px;
   gap: 16px;
-  background: white;
+  background: var(--neo-bg);
   border-radius: 8px;
 }
 
 .items-grid.list .item-card:hover {
-  background: #f8f9fa;
+  background: var(--neo-bg);
 }
 
 .items-grid.list .item-icon-large {
@@ -1924,15 +1948,16 @@ export default {
 }
 
 .item-card:hover {
-  background: rgba(0, 0, 0, 0.04);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .item-card:hover .item-icon-large {
-  transform: scale(1.05);
+  transform: scale(1.04);
+  box-shadow: var(--neo-raised);
 }
 
 .item-card.folder:hover {
-  background: rgba(0, 0, 0, 0.04);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .item-card.dragging {
@@ -1941,37 +1966,41 @@ export default {
 }
 
 .item-card.drag-over {
-  background: rgba(26, 26, 26, 0.08);
-  border: 2px dashed #1a1a1a;
+  background: var(--neo-bg);
+  border: 2px dashed var(--neo-accent);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .item-icon-large {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
-  transition: transform 0.15s;
+  margin-bottom: 10px;
+  border-radius: 16px;
+  background: var(--neo-bg);
+  box-shadow: var(--neo-raised-sm);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
 .item-icon-large.folder-icon {
-  color: #c0c0c0;
-  transition: color 0.2s;
+  color: var(--neo-accent);
+  transition: color 0.2s, box-shadow 0.15s;
 }
 
 .item-icon-large.doc-icon {
-  color: #666;
+  color: var(--neo-text-muted);
 }
 
 .item-icon-large.doc-icon.public {
-  color: #7c5cbf;
+  color: var(--neo-accent-bright);
 }
 
 .item-name {
   font-size: 12px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--neo-text);
   text-align: center;
   word-break: break-word;
   line-height: 1.3;
@@ -2034,7 +2063,7 @@ export default {
 .item-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -2043,7 +2072,7 @@ export default {
 
 .item-meta {
   font-size: 12px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin-bottom: 2px;
 }
 
@@ -2064,7 +2093,7 @@ export default {
 }
 
 .admin-badge {
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   display: flex;
   align-items: center;
@@ -2086,16 +2115,16 @@ export default {
 }
 
 .item-menu:hover {
-  background: #f5f5f5;
+  background: var(--neo-bg);
 }
 
 .item-dropdown {
   position: absolute;
   top: 48px;
   right: 16px;
-  background: white;
+  background: var(--neo-bg);
   border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neo-raised);
   overflow: hidden;
   z-index: 10;
 }
@@ -2108,12 +2137,12 @@ export default {
   background: transparent;
   text-align: left;
   font-size: 13px;
-  color: #1a1a1a;
+  color: var(--neo-text);
   cursor: pointer;
 }
 
 .item-dropdown button:hover {
-  background: #f5f5f5;
+  background: var(--neo-bg);
 }
 
 .item-actions {
@@ -2127,7 +2156,7 @@ export default {
   width: 28px;
   height: 28px;
   border: none;
-  background: #f5f5f5;
+  background: var(--neo-bg);
   border-radius: 6px;
   cursor: pointer;
   color: #666;
@@ -2139,7 +2168,7 @@ export default {
 
 .action-btn:hover {
   background: #e9ecef;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .action-btn.publish-btn:hover {
@@ -2158,7 +2187,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border: none;
   border-radius: 10px;
@@ -2169,7 +2198,7 @@ export default {
 }
 
 .btn-primary:hover {
-  background: #333;
+  background: var(--neo-accent);
 }
 
 .btn-secondary {
@@ -2177,9 +2206,9 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: white;
-  color: #1a1a1a;
-  border: 1px solid #e9ecef;
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  border: none;
   border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
@@ -2188,7 +2217,7 @@ export default {
 }
 
 .btn-secondary:hover {
-  background: #f8f9fa;
+  background: var(--neo-bg);
   border-color: #ccc;
 }
 
@@ -2210,7 +2239,7 @@ export default {
 
 .btn-danger-outline {
   padding: 10px 20px;
-  background: white;
+  background: var(--neo-bg);
   color: #dc3545;
   border: 1px solid #dc3545;
   border-radius: 10px;
@@ -2236,24 +2265,24 @@ export default {
 }
 
 .modal {
-  background: white;
+  background: var(--neo-bg);
   padding: 32px;
   border-radius: 20px;
   width: 100%;
   max-width: 400px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--neo-raised-lg);
 }
 
 .modal h3 {
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 20px;
 }
 
 .modal-warning {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   line-height: 1.6;
   margin-bottom: 20px;
 }
@@ -2266,14 +2295,14 @@ export default {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 8px;
 }
 
 .input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e9ecef;
+  border: none;
   border-radius: 10px;
   font-size: 14px;
   transition: all 0.2s;
@@ -2281,8 +2310,8 @@ export default {
 
 .input:focus {
   outline: none;
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+  border-color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm), 0 0 0 2px rgba(232, 149, 111, 0.2);
 }
 
 .modal-actions {
@@ -2298,12 +2327,12 @@ export default {
   bottom: 32px;
   right: 32px;
   padding: 14px 24px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neo-raised);
   animation: slideIn 0.3s ease;
   z-index: 1001;
 }

@@ -189,15 +189,16 @@ export default {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #f8f9fa;
+  background-color: var(--neo-bg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .login-box {
-  background: white;
+  background: var(--neo-bg);
   padding: 40px;
-  border-radius: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: var(--neo-radius-lg);
+  box-shadow: var(--neo-raised-lg);
+  border: none;
   width: 100%;
   max-width: 400px;
 }
@@ -213,31 +214,32 @@ export default {
 .logo-icon {
   width: 36px;
   height: 36px;
-  background-color: #1a1a1a;
-  border-radius: 10px;
+  background-color: var(--neo-bg);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--neo-accent);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .logo-text {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 h1 {
   text-align: center;
   margin-bottom: 8px;
-  color: #1a1a1a;
+  color: var(--neo-text);
   font-size: 24px;
   font-weight: 700;
 }
 
 .subtitle {
   text-align: center;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   font-size: 14px;
   margin-bottom: 32px;
 }
@@ -250,7 +252,7 @@ h1 {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 8px;
 }
 
@@ -266,30 +268,29 @@ h1 {
   align-items: center;
   gap: 8px;
   padding: 16px;
-  background: white;
-  border: 2px solid #e9ecef;
-  border-radius: 12px;
+  background: var(--neo-bg);
+  border: none;
+  border-radius: var(--neo-radius);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s;
   font-size: 14px;
   font-weight: 500;
-  color: #666;
+  color: var(--neo-text-muted);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .role-btn:hover {
-  border-color: #ccc;
-  background: #fafafa;
+  color: var(--neo-text);
 }
 
 .role-btn.active {
-  border-color: #1a1a1a;
-  background: #f5f5f5;
-  color: #1a1a1a;
+  color: var(--neo-accent);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .role-hint {
   font-size: 12px;
-  color: #888;
+  color: var(--neo-text-muted);
   margin-top: 8px;
   text-align: center;
 }
@@ -297,21 +298,23 @@ h1 {
 input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e9ecef;
-  border-radius: 10px;
+  border: none;
+  border-radius: var(--neo-radius-pill);
   font-size: 14px;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s;
   font-family: inherit;
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm);
 }
 
 input::placeholder {
-  color: #adb5bd;
+  color: var(--neo-text-muted);
 }
 
 input:focus {
   outline: none;
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+  box-shadow: var(--neo-inset-sm), 0 0 0 2px rgba(232, 149, 111, 0.25);
 }
 
 .message {
@@ -335,24 +338,24 @@ input:focus {
 button {
   width: 100%;
   padding: 14px;
-  background-color: #1a1a1a;
+  background-color: var(--neo-accent);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--neo-radius-pill);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s;
   font-family: inherit;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 48px;
+  box-shadow: var(--neo-raised-sm), 0 0 12px rgba(232, 149, 111, 0.35);
 }
 
 button:hover:not(:disabled) {
-  background-color: #333;
-  transform: translateY(-1px);
+  box-shadow: var(--neo-inset-sm), 0 0 8px rgba(232, 149, 111, 0.25);
 }
 
 button:disabled {
@@ -376,12 +379,12 @@ button:disabled {
 .toggle-text {
   text-align: center;
   margin-top: 24px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   font-size: 14px;
 }
 
 .toggle-text span {
-  color: #1a1a1a;
+  color: var(--neo-accent);
   cursor: pointer;
   font-weight: 600;
   margin-left: 4px;

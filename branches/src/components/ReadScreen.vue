@@ -304,7 +304,7 @@ export default {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 48px);
-  background-color: #fafafa;
+  background-color: var(--neo-bg);
 }
 
 /* No Document Selected State */
@@ -326,7 +326,7 @@ export default {
 .no-document h2 {
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 8px;
 }
 
@@ -341,7 +341,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border: none;
   border-radius: 10px;
@@ -353,7 +353,7 @@ export default {
 }
 
 .go-to-library-btn:hover {
-  background: #333;
+  background: var(--neo-accent);
 }
 
 /* Document Header */
@@ -362,7 +362,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 16px 48px;
-  background: white;
+  background: var(--neo-bg);
   border-bottom: 1px solid #eee;
 }
 
@@ -394,7 +394,7 @@ export default {
 .doc-title {
   font-size: 22px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   border: none;
   outline: none;
   background: transparent;
@@ -413,7 +413,7 @@ export default {
   color: #999;
   font-weight: 500;
   padding: 4px 10px;
-  background: #f5f5f5;
+  background: var(--neo-bg);
   border-radius: 6px;
 }
 
@@ -422,9 +422,9 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: white;
+  background: var(--neo-bg);
   color: #666;
-  border: 1px solid #e9ecef;
+  border: none;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
@@ -433,9 +433,9 @@ export default {
 }
 
 .save-btn:hover {
-  background: #f8f9fa;
+  background: var(--neo-bg);
   border-color: #ccc;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .save-btn.saved {
@@ -454,7 +454,7 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 10px 20px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border: none;
   border-radius: 10px;
@@ -465,7 +465,7 @@ export default {
 }
 
 .edit-btn:hover {
-  background: #333;
+  background: var(--neo-accent);
 }
 
 /* Editor Wrapper */
@@ -485,9 +485,9 @@ export default {
   align-items: center;
   gap: 4px;
   padding: 8px 16px;
-  background: white;
+  background: var(--neo-bg);
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--neo-raised);
   z-index: 10;
 }
 
@@ -535,7 +535,7 @@ export default {
 .editor-content :deep(h1) {
   font-size: 36px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin: 0 0 24px;
   line-height: 1.3;
 }
@@ -543,7 +543,7 @@ export default {
 .editor-content :deep(h2) {
   font-size: 26px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin: 0 0 16px;
   line-height: 1.4;
 }
@@ -551,7 +551,7 @@ export default {
 .editor-content :deep(h3) {
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin: 0 0 16px;
   line-height: 1.4;
 }
@@ -583,7 +583,7 @@ export default {
 }
 
 .editor-content :deep(pre) {
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: #f8f8f2;
   padding: 20px 24px;
   border-radius: 12px;
@@ -595,7 +595,7 @@ export default {
 }
 
 .editor-content :deep(code) {
-  background: #f5f5f5;
+  background: var(--neo-bg);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'Fira Code', 'Monaco', monospace;
@@ -631,12 +631,12 @@ export default {
   bottom: 32px;
   right: 32px;
   padding: 14px 24px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: white;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neo-raised);
   animation: slideIn 0.3s ease;
   z-index: 1001;
 }

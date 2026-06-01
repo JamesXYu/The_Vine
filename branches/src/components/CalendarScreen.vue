@@ -127,6 +127,44 @@
               />
             </template>
           </Qalendar>
+          <Teleport v-if="calendarHeaderTarget" :to="calendarHeaderTarget">
+            <div class="calendar-view-toolbar" aria-label="Calendar view">
+              <button
+                type="button"
+                class="calendar-view-nav"
+                aria-label="Previous period"
+                @click="navigateCalendarPeriod('previous')"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6"/>
+                </svg>
+              </button>
+              <div class="calendar-view-modes" role="tablist">
+                <button
+                  v-for="opt in calendarViewModes"
+                  :key="opt.id"
+                  type="button"
+                  role="tab"
+                  class="calendar-view-mode"
+                  :class="{ active: qalendarMode === opt.id }"
+                  :aria-selected="qalendarMode === opt.id"
+                  @click="setCalendarViewMode(opt.id)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+              <button
+                type="button"
+                class="calendar-view-nav"
+                aria-label="Next period"
+                @click="navigateCalendarPeriod('next')"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+          </Teleport>
           <CalendarScrollMonth
             v-if="qalendarMode === 'month'"
             :events="qalendarEvents"
@@ -578,7 +616,7 @@
     </div>
 
     <!-- Event modal -->
-    <div v-if="showEventModal" class="modal-overlay" @click.self="closeEventModal">
+    <div v-if="showEventModal" class="modal-overlay event-modal-overlay" @click.self="closeEventModal">
       <div class="modal event-modal">
         <h3>{{ editingEventId ? (eventViewOnly ? 'Event details' : 'Edit event') : 'New event' }}</h3>
 
@@ -739,6 +777,7 @@ import { ref, computed, watch, onMounted, onActivated, onUnmounted, nextTick } f
 import { useRoute } from 'vue-router'
 import { Qalendar } from 'qalendar'
 import 'qalendar/dist/style.css'
+import '../styles/calendar-events.css'
 import CalendarScrollMonth from './CalendarScrollMonth.vue'
 import EventFlyoutContent from './EventFlyoutContent.vue'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
@@ -747,7 +786,7 @@ import { supabase } from '../supabase'
 import {
   useCalendarEvents,
   snapTo15Minutes,
-  eventResponseStyle,
+  neoEventChipStyle,
   isPendingCalendarMember
 } from '../composables/useCalendarEvents'
 import { useCalendarDragCreate, buildWeekPeriod, getWeekStart } from '../composables/useCalendarDragCreate'
@@ -977,6 +1016,13 @@ export default {
     const tagDragIndex = ref(null)
     const tagDropIndex = ref(null)
     const calendarWrapperRef = ref(null)
+    const calendarHeaderTarget = ref(null)
+
+    const syncCalendarHeaderTarget = async () => {
+      await nextTick()
+      calendarHeaderTarget.value =
+        calendarWrapperRef.value?.querySelector('.calendar-header') || null
+    }
     const qalendarRef = ref(null)
     const calendarPeriod = ref(buildWeekPeriod())
     const qalendarMode = ref('week')
@@ -1130,7 +1176,7 @@ export default {
     const shareRoleToDbRole = (shareRole) => (shareRole === 'admin' ? 'editor' : 'viewer')
 
     const calendarTagStyle = (tag) => ({
-      '--cal-color': tag.color || '#667eea'
+      '--cal-color': tag.color || 'var(--neo-accent)'
     })
 
     const filteredShareUsers = computed(() => {
@@ -1246,8 +1292,8 @@ export default {
 
     const weekEventBlockStyle = (eventData) => {
       const scheme = qalendarConfig.value.style?.colorSchemes?.[eventData?.colorScheme]
-      const bg = scheme?.backgroundColor || eventData?.tagColor || '#667eea'
-      return eventResponseStyle(bg)
+      const bg = scheme?.backgroundColor || eventData?.tagColor
+      return neoEventChipStyle(bg)
     }
 
     const weekEventRsvpClass = (eventData) => {
@@ -1542,10 +1588,26 @@ export default {
       if (mode) qalendarMode.value = mode
     }
 
+    const calendarViewModes = [
+      { id: 'day', label: 'Day' },
+      { id: 'week', label: 'Week' },
+      { id: 'month', label: 'Month' }
+    ]
+
+    const setCalendarViewMode = (mode) => {
+      if (!mode || qalendarMode.value === mode) return
+      qalendarRef.value?.handleChangeMode?.(mode)
+    }
+
+    const navigateCalendarPeriod = (direction) => {
+      qalendarRef.value?.goToPeriod?.(direction)
+    }
+
     watch(qalendarMode, async (mode) => {
       if (mode === 'month') {
         await nextTick()
         syncQalendarHeaderPeriod(calendarPeriod.value)
+        await syncCalendarHeaderTarget()
         return
       }
       if (mode === 'week') {
@@ -1553,11 +1615,13 @@ export default {
         await nextTick()
         ensureWeekScrollTracking()
       }
+      await syncCalendarHeaderTarget()
     })
 
     watch(loading, async (isLoading) => {
       if (!isLoading) {
         await ensureDragCreate()
+        await syncCalendarHeaderTarget()
       }
     })
 
@@ -1590,6 +1654,7 @@ export default {
       await nextTick()
       scheduleDefaultWeekViewport()
       ensureWeekScrollTracking()
+      await syncCalendarHeaderTarget()
     })
 
     onActivated(async () => {
@@ -1601,6 +1666,7 @@ export default {
         eventForm.value.tagId = queryTag
       }
       await refreshEvents({ preserveScroll: true, silent: true })
+      await syncCalendarHeaderTarget()
     })
     onUnmounted(() => {
       if (unsubscribe) unsubscribe()
@@ -2260,6 +2326,7 @@ export default {
       tags,
       activeTagId,
       calendarWrapperRef,
+      calendarHeaderTarget,
       qalendarRef,
       dragPreview,
       activeCalendar,
@@ -2317,6 +2384,9 @@ export default {
       shareSelectedEmails,
       calendarDeleteEventCount,
       qalendarMode,
+      calendarViewModes,
+      setCalendarViewMode,
+      navigateCalendarPeriod,
       qalendarEvents,
       qalendarConfig,
       calendarPeriod,
@@ -2405,7 +2475,7 @@ export default {
   min-height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
-  background: #f8f9fa;
+  background: var(--neo-bg);
 }
 
 .calendar-topbar {
@@ -2415,14 +2485,14 @@ export default {
   gap: 16px;
   flex-shrink: 0;
   padding: 16px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e9ecef;
+  background: var(--neo-bg);
+  border-bottom: none;
 }
 
 .calendar-topbar__head h1 {
   font-size: 24px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 4px;
 }
 
@@ -2447,8 +2517,8 @@ export default {
   display: flex;
   flex-direction: column;
   padding: 12px 8px;
-  background: #fff;
-  border-right: 1px solid #e9ecef;
+  background: var(--neo-bg);
+  border-right: none;
   overflow-x: visible;
   overflow-y: hidden;
 }
@@ -2467,18 +2537,21 @@ export default {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .calendar-tag-list {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
-  padding: 2px;
+  gap: 4px;
+  padding: 8px;
   overflow-x: visible;
   overflow-y: auto;
   min-height: 0;
+  background: var(--neo-bg-tray);
+  border-radius: var(--neo-radius-lg);
+  box-shadow: var(--neo-inset);
 }
 
 .calendar-tag-list .calendar-all-btn {
@@ -2490,33 +2563,32 @@ export default {
   min-height: 32px;
   max-height: 32px;
   padding: 6px 12px;
-  border-radius: 10px;
-  border: 1px solid #e9ecef;
-  background: #fff;
+  border-radius: var(--neo-radius-md);
+  border: none;
+  background: var(--neo-bg-light);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
   letter-spacing: normal;
   text-transform: none;
   text-align: left;
-  color: #495057;
+  color: var(--neo-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--neo-raised-sm);
+  transition: box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .calendar-tag-list .calendar-all-btn:hover {
-  background: #f8f9fa;
-  border-color: #dee2e6;
+  background: color-mix(in srgb, #ffffff 52%, var(--neo-bg));
 }
 
 .calendar-tag-list .calendar-all-btn.active {
-  background: #1a1a1a;
-  border-color: #1a1a1a;
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--neo-accent) 14%, var(--neo-bg-light));
+  color: var(--neo-text);
+  font-weight: 600;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .calendar-tag-list .folder-tag.calendar-tag {
@@ -2531,10 +2603,10 @@ export default {
   min-height: 36px;
   max-height: none;
   padding: 7px 12px 7px 14px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--cal-color, #667eea) 18%, #e9ecef);
-  background: #fff;
-  color: #1a1a1a;
+  border-radius: var(--neo-radius-md);
+  border: none;
+  background: var(--neo-bg-light);
+  color: var(--neo-text);
   text-align: left;
   text-transform: none;
   letter-spacing: normal;
@@ -2542,8 +2614,8 @@ export default {
   font-weight: 500;
   line-height: 1.25;
   white-space: normal;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--neo-raised-sm);
+  transition: box-shadow 0.15s ease, background 0.15s ease;
   overflow: hidden;
 }
 
@@ -2554,7 +2626,7 @@ export default {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--cal-color, #667eea);
+  background: var(--cal-color, var(--neo-accent));
   border-radius: 10px 0 0 10px;
 }
 
@@ -2568,21 +2640,18 @@ export default {
 .calendar-tag-list .folder-tag.calendar-tag.tag-shared {
   min-height: 46px;
   padding: 6px 12px 7px 14px;
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--cal-color, #667eea) 32%, #e9ecef);
+  box-shadow:
+    var(--neo-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--cal-color, var(--neo-accent)) 35%, transparent);
 }
 
 .calendar-tag-list .folder-tag.calendar-tag:hover {
-  background: color-mix(in srgb, var(--cal-color, #667eea) 5%, #fff);
-  border-color: color-mix(in srgb, var(--cal-color, #667eea) 28%, #e9ecef);
+  background: color-mix(in srgb, var(--cal-color, var(--neo-accent)) 6%, var(--neo-bg-light));
 }
 
 .calendar-tag-list .folder-tag.active {
-  background: color-mix(in srgb, var(--cal-color, #667eea) 10%, #fff);
-  border-color: color-mix(in srgb, var(--cal-color, #667eea) 42%, #e9ecef);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--cal-color, #667eea) 22%, transparent),
-    0 1px 3px rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--cal-color, var(--neo-accent)) 12%, var(--neo-bg-light));
+  box-shadow: var(--neo-raised-sm);
   padding: 7px 12px 7px 14px;
 }
 
@@ -2617,7 +2686,7 @@ export default {
 }
 
 .subtitle {
-  color: #6c757d;
+  color: var(--neo-text-muted);
   font-size: 13px;
 }
 
@@ -2626,7 +2695,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -2637,7 +2706,7 @@ export default {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #333;
+  background: var(--neo-accent);
 }
 
 .btn-primary:disabled {
@@ -2653,9 +2722,9 @@ export default {
 
 .btn-secondary {
   padding: 10px 18px;
-  background: #f8f9fa;
-  color: #1a1a1a;
-  border: 1px solid #e9ecef;
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  border: none;
   border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
@@ -2702,18 +2771,18 @@ export default {
 }
 
 .calendar-action-create {
-  background: #1a1a1a;
+  background: var(--neo-accent);
   color: #fff;
   border: 1px solid #1a1a1a;
 }
 
 .calendar-action-create:hover {
-  background: #333;
+  background: var(--neo-accent);
   border-color: #333;
 }
 
 .calendar-action-delete {
-  background: #fff;
+  background: var(--neo-bg);
   color: #dc3545;
   border: 1px solid #dc3545;
 }
@@ -2729,7 +2798,7 @@ export default {
 }
 
 .calendar-action-share {
-  background: #fff;
+  background: var(--neo-bg);
   color: #4f46e5;
   border: 1px solid #4f46e5;
 }
@@ -2745,7 +2814,7 @@ export default {
 }
 
 .calendar-action-info {
-  background: #fff;
+  background: var(--neo-bg);
   color: #374151;
   border: 1px solid #d1d5db;
 }
@@ -2776,7 +2845,7 @@ export default {
   justify-content: space-between;
   gap: 12px;
   padding: 20px 20px 12px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: none;
   flex-shrink: 0;
 }
 
@@ -2784,7 +2853,7 @@ export default {
   margin: 0 0 4px;
   font-size: 1.15rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .calendar-info-close {
@@ -2883,7 +2952,7 @@ export default {
 
 .calendar-info-detail-row dd {
   margin: 0;
-  color: #1a1a1a;
+  color: var(--neo-text);
   text-align: right;
 }
 
@@ -2905,7 +2974,7 @@ export default {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid #e9ecef;
+  border: none;
   border-radius: 12px;
   overflow: hidden;
 }
@@ -2938,7 +3007,7 @@ export default {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, var(--neo-accent), #764ba2);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -2959,7 +3028,7 @@ export default {
 .calendar-info-member-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .calendar-info-member-email {
@@ -3008,7 +3077,7 @@ export default {
   display: flex;
   gap: 10px;
   padding: 14px 20px 20px;
-  border-top: 1px solid #e9ecef;
+  border-top: none;
   flex-shrink: 0;
 }
 
@@ -3030,7 +3099,7 @@ export default {
 }
 
 .calendar-info-action-edit {
-  background: #fff;
+  background: var(--neo-bg);
   color: #059669;
   border-color: #10b981;
 }
@@ -3041,7 +3110,7 @@ export default {
 }
 
 .calendar-info-action-share {
-  background: #fff;
+  background: var(--neo-bg);
   color: #4f46e5;
   border-color: #4f46e5;
 }
@@ -3052,7 +3121,7 @@ export default {
 }
 
 .calendar-info-action-remove {
-  background: #fff;
+  background: var(--neo-bg);
   color: #b45309;
   border-color: #f59e0b;
 }
@@ -3063,7 +3132,7 @@ export default {
 }
 
 .calendar-info-action-delete {
-  background: #fff;
+  background: var(--neo-bg);
   color: #dc3545;
   border-color: #dc3545;
 }
@@ -3077,7 +3146,7 @@ export default {
   list-style: none;
   margin: 0 0 16px;
   padding: 12px 14px;
-  background: #f8f9fa;
+  background: var(--neo-bg);
   border-radius: 8px;
   font-size: 13px;
   color: #374151;
@@ -3102,13 +3171,13 @@ export default {
   display: inline-flex;
   flex-shrink: 0;
   opacity: 0.9;
-  color: var(--cal-color, #667eea);
+  color: var(--cal-color, var(--neo-accent));
 }
 
 .calendar-tag.tag-shared .calendar-kind-badge {
-  color: color-mix(in srgb, var(--cal-color, #667eea) 75%, #1a1a1a);
-  background: color-mix(in srgb, var(--cal-color, #667eea) 12%, #f8f9fa);
-  border: 1px solid color-mix(in srgb, var(--cal-color, #667eea) 22%, #e9ecef);
+  color: color-mix(in srgb, var(--cal-color, var(--neo-accent)) 75%, #1a1a1a);
+  background: color-mix(in srgb, var(--cal-color, var(--neo-accent)) 12%, var(--neo-bg));
+  border: 1px solid color-mix(in srgb, var(--cal-color, var(--neo-accent)) 22%, #e9ecef);
 }
 
 .calendar-kind-badge {
@@ -3129,12 +3198,12 @@ export default {
 }
 
 .calendar-tag.tag-drag-over {
-  box-shadow: 0 0 0 2px var(--cal-color, #667eea);
+  box-shadow: 0 0 0 2px var(--cal-color, var(--neo-accent));
 }
 
 .share-modal-hint {
   font-size: 13px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin: -12px 0 16px;
 }
 
@@ -3153,7 +3222,7 @@ export default {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid #e9ecef;
+  border: none;
   border-radius: 10px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
@@ -3183,7 +3252,7 @@ export default {
 .share-role-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .share-role-desc {
@@ -3201,7 +3270,7 @@ export default {
 .share-loading,
 .share-empty {
   font-size: 13px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   padding: 12px 0;
 }
 
@@ -3211,7 +3280,7 @@ export default {
   padding: 0;
   max-height: 280px;
   overflow-y: auto;
-  border: 1px solid #e9ecef;
+  border: none;
   border-radius: 12px;
 }
 
@@ -3230,7 +3299,7 @@ export default {
 }
 
 .share-user-row:hover:not(.disabled) {
-  background: #f8f9fa;
+  background: var(--neo-bg);
 }
 
 .share-user-row.selected {
@@ -3260,12 +3329,12 @@ export default {
 .share-user-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
 }
 
 .share-user-email {
   font-size: 12px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .share-user-badge {
@@ -3291,7 +3360,7 @@ export default {
 .share-current-label {
   font-size: 12px;
   font-weight: 600;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin: 0 0 8px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -3345,7 +3414,7 @@ export default {
 
 .modal-warning {
   font-size: 14px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   line-height: 1.6;
   margin-bottom: 20px;
 }
@@ -3357,39 +3426,41 @@ export default {
 /* Event modal tag picker only — not sidebar calendar list */
 .folder-tag:not(.calendar-tag):not(.calendar-all-btn) {
   display: inline-block;
-  padding: 6px 12px;
-  background: #f0f0f0;
-  border-radius: 20px;
+  padding: 8px 14px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius-pill);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
-  border: 1px solid transparent;
-  color: #666;
+  border: none;
+  color: var(--neo-text-muted);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: box-shadow 0.15s, color 0.15s;
   font-family: inherit;
+  box-shadow: var(--neo-raised-sm);
 }
 
 .folder-tag:not(.calendar-tag):not(.calendar-all-btn):hover {
-  opacity: 0.85;
+  color: var(--neo-text);
 }
 
 .folder-tag:not(.calendar-tag):not(.calendar-all-btn).active {
-  box-shadow: 0 0 0 2px currentColor;
+  color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .calendar-wrapper {
   position: relative;
   flex: 1;
   min-height: 0;
-  background: #fff;
+  background: var(--neo-bg);
   border-radius: 12px;
-  border: 1px solid #e9ecef;
+  border: none;
   overflow: hidden;
   padding: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .calendar-wrapper.is-scroll-month {
@@ -3417,7 +3488,191 @@ export default {
 
 .calendar-wrapper.is-scroll-month :deep(.calendar-header) {
   flex-shrink: 0;
-  background: #fff;
+  background: var(--neo-bg);
+}
+
+/* Qalendar chrome — neomorphic theme */
+.calendar-wrapper :deep(.calendar-root-wrapper .calendar-root) {
+  background: var(--neo-bg) !important;
+  border: none !important;
+  box-shadow: var(--neo-inset-sm) !important;
+  color: var(--neo-text);
+}
+
+.calendar-wrapper :deep(.calendar-root) {
+  --qalendar-theme-color: var(--neo-accent);
+  --qalendar-blue: var(--neo-accent);
+  --qalendar-border-gray-thin: 1px solid rgba(163, 177, 198, 0.35);
+  --qalendar-border-dashed-gray-thin: 1px dashed rgba(163, 177, 198, 0.35);
+  --qalendar-light-gray: color-mix(in srgb, var(--neo-accent) 8%, var(--neo-bg));
+  --qalendar-option-hover: color-mix(in srgb, var(--neo-accent) 14%, var(--neo-bg));
+  --qalendar-gray-quite-dark: var(--neo-text-muted);
+  --qalendar-gray: var(--neo-text-muted);
+}
+
+.calendar-wrapper :deep(.calendar-header) {
+  background: var(--neo-bg) !important;
+  box-shadow: inset 0 -1px 0 rgba(163, 177, 198, 0.2);
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: nowrap !important;
+}
+
+.calendar-wrapper :deep(.calendar-header__period-name) {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  min-width: 0;
+  margin-right: 0;
+  font-size: 1rem;
+}
+
+.calendar-wrapper :deep(.calendar-view-toolbar) {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+}
+
+.calendar-wrapper :deep(.calendar-header__period) {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap !important;
+  width: auto;
+  min-height: 36px;
+  gap: 6px;
+  margin-left: 0;
+}
+
+.calendar-wrapper :deep(.calendar-header__period .date-picker) {
+  position: static;
+  transform: none;
+  min-width: auto !important;
+  width: fit-content;
+  flex-shrink: 0;
+}
+
+.calendar-wrapper :deep(.date-picker__value-display) {
+  background: var(--neo-bg) !important;
+  border: none !important;
+  box-shadow: var(--neo-inset-sm) !important;
+  border-radius: var(--neo-radius-pill) !important;
+  color: var(--neo-text) !important;
+  height: 26px !important;
+  min-height: 26px;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  gap: 4px;
+}
+
+.calendar-wrapper :deep(.calendar-header__chevron-arrows),
+.calendar-wrapper :deep(.calendar-header__mode-picker) {
+  display: none !important;
+}
+
+.calendar-wrapper :deep(.calendar-header__period .date-picker__value-display) {
+  min-width: 0;
+  max-width: 9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-wrapper :deep(.calendar-header__period .date-picker__value-display-text) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-view-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.calendar-view-modes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 4px;
+  border-radius: var(--neo-radius-pill);
+  background: var(--neo-bg);
+  box-shadow: var(--neo-inset-sm);
+}
+
+.calendar-view-mode {
+  height: 28px;
+  min-width: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--neo-radius-pill);
+  background: transparent;
+  color: var(--neo-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calendar-view-mode:hover:not(.active) {
+  color: var(--neo-text);
+}
+
+.calendar-view-mode.active {
+  background: var(--neo-accent);
+  color: #fff;
+  box-shadow: var(--neo-raised-sm);
+}
+
+.calendar-view-nav {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--neo-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.calendar-view-nav:hover {
+  color: var(--neo-text);
+}
+
+.calendar-wrapper :deep(.week-timeline__date),
+.calendar-wrapper :deep(.is-today .week-timeline__date) {
+  color: var(--neo-text-muted);
+}
+
+.calendar-wrapper :deep(.is-today .week-timeline__date) {
+  background-color: var(--neo-accent) !important;
+  color: #fff !important;
+  box-shadow: var(--neo-raised-sm);
+}
+
+.calendar-wrapper :deep(.calendar-week .current-time-line) {
+  background-color: var(--neo-accent) !important;
+}
+
+.calendar-wrapper :deep(.calendar-week .current-time-line__circle::before) {
+  background-color: var(--neo-accent) !important;
+}
+
+.calendar-wrapper :deep(.day-timeline__hour-text) {
+  color: var(--neo-text-muted);
 }
 
 /* Strip Qalendar’s solid fill so custom event chrome shows */
@@ -3433,7 +3688,7 @@ export default {
 }
 
 .calendar-wrapper :deep(.vine-week-event) {
-  --event-accent: #667eea;
+  --event-accent: var(--neo-accent);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -3441,56 +3696,54 @@ export default {
   width: 100%;
   height: 100%;
   min-height: 100%;
-  padding: 4px 6px 4px 8px;
-  border-radius: 6px;
+  padding: 5px 8px 5px 10px;
+  border-radius: var(--neo-radius-sm);
   overflow: hidden;
   box-sizing: border-box;
   line-height: 1.2;
   cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--event-accent) 20%, #e9ecef);
+  border: none;
   border-left: 3px solid var(--event-accent);
-  background: color-mix(in srgb, var(--event-accent) 11%, #fff);
-  color: #1a1a1a;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  background: color-mix(in srgb, var(--event-accent) 14%, var(--neo-bg));
+  color: var(--neo-text);
+  box-shadow: var(--neo-raised-sm);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .calendar-wrapper :deep(.vine-week-event:hover) {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  border-color: color-mix(in srgb, var(--event-accent) 32%, #dee2e6);
+  box-shadow: var(--neo-raised);
+  transform: translateY(-1px);
 }
 
 .calendar-wrapper :deep(.vine-week-event.is-rsvp-pending) {
   background:
     repeating-linear-gradient(
       -45deg,
-      color-mix(in srgb, var(--event-accent) 6%, #fff),
-      color-mix(in srgb, var(--event-accent) 6%, #fff) 4px,
-      color-mix(in srgb, var(--event-accent) 12%, #fff) 4px,
-      color-mix(in srgb, var(--event-accent) 12%, #fff) 8px
+      color-mix(in srgb, var(--event-accent) 8%, var(--neo-bg)),
+      color-mix(in srgb, var(--event-accent) 8%, var(--neo-bg)) 4px,
+      color-mix(in srgb, var(--event-accent) 16%, var(--neo-bg)) 4px,
+      color-mix(in srgb, var(--event-accent) 16%, var(--neo-bg)) 8px
     );
-  border-style: dashed;
   border-left-style: solid;
-  border-color: color-mix(in srgb, var(--event-accent) 28%, #dee2e6);
-  border-left-color: var(--event-accent);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .calendar-wrapper :deep(.vine-week-event.is-rsvp-rejected) {
-  background: #f8f9fa;
-  border-color: #e9ecef;
-  border-left-color: #ced4da;
-  opacity: 0.72;
+  background: var(--neo-bg);
+  border-left-color: var(--neo-text-muted);
+  box-shadow: var(--neo-inset-sm);
+  opacity: 0.75;
 }
 
 .calendar-wrapper :deep(.vine-week-event.is-rsvp-rejected .vine-week-event__title) {
   text-decoration: line-through;
-  color: #868e96;
+  color: var(--neo-text-muted);
 }
 
 .calendar-wrapper :deep(.vine-week-event__title) {
   font-size: 11px;
   font-weight: 600;
-  color: color-mix(in srgb, var(--event-accent) 55%, #1a1a1a);
+  color: color-mix(in srgb, var(--event-accent) 50%, var(--neo-text));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3500,7 +3753,7 @@ export default {
 .calendar-wrapper :deep(.vine-week-event__creator) {
   font-size: 10px;
   margin: 0;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3508,14 +3761,15 @@ export default {
 
 .calendar-wrapper :deep(.vine-week-event.is-rsvp-pending .vine-week-event__time),
 .calendar-wrapper :deep(.vine-week-event.is-rsvp-pending .vine-week-event__creator) {
-  color: color-mix(in srgb, var(--event-accent) 40%, #6c757d);
+  color: color-mix(in srgb, var(--event-accent) 40%, var(--neo-text-muted));
 }
 
 .drag-preview {
   position: absolute;
-  background: rgba(26, 26, 26, 0.15);
-  border: 2px solid #1a1a1a;
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--neo-accent) 18%, transparent);
+  border: 2px dashed var(--neo-accent);
+  border-radius: var(--neo-radius-sm);
+  box-shadow: var(--neo-raised-sm);
   pointer-events: none;
   z-index: 50;
 }
@@ -3532,7 +3786,7 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(163, 177, 198, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3541,14 +3795,14 @@ export default {
 }
 
 .modal {
-  background: white;
+  background: var(--neo-bg);
   padding: 32px;
   border-radius: 20px;
   width: 100%;
   max-width: 440px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--neo-raised-lg);
 }
 
 .modal-wide {
@@ -3558,7 +3812,7 @@ export default {
 .modal h3 {
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 24px;
 }
 
@@ -3570,7 +3824,7 @@ export default {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 8px;
 }
 
@@ -3582,18 +3836,18 @@ export default {
 .input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e9ecef;
+  border: none;
   border-radius: 10px;
   font-size: 14px;
   font-family: inherit;
   transition: all 0.2s;
-  background: #fff;
+  background: var(--neo-bg);
 }
 
 .input:focus {
   outline: none;
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+  border-color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm), 0 0 0 2px rgba(232, 149, 111, 0.2);
 }
 
 .textarea {
@@ -3609,6 +3863,15 @@ export default {
 
 .form-row .form-group {
   margin-bottom: 0;
+}
+
+.event-modal-overlay {
+  background: rgba(163, 177, 198, 0.16) !important;
+}
+
+.event-modal-overlay .event-modal {
+  background: var(--neo-bg);
+  box-shadow: var(--neo-raised-lg);
 }
 
 .event-modal {
@@ -3629,12 +3892,10 @@ export default {
 .calendar-wrapper :deep(.event-flyout.is-visible) {
   min-width: 260px;
   max-width: min(320px, 98vw);
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.09),
-    0 6px 12px rgba(0, 0, 0, 0.12);
+  background: var(--neo-bg) !important;
+  border: none !important;
+  border-radius: var(--neo-radius-lg) !important;
+  box-shadow: var(--neo-raised-lg) !important;
   overflow: hidden;
 }
 
@@ -3645,10 +3906,11 @@ export default {
 .event-view-time {
   margin: 0;
   padding: 12px 16px;
-  background: #f8f9fa;
-  border-radius: 10px;
+  background: var(--neo-bg);
+  border-radius: var(--neo-radius-md);
   font-size: 14px;
-  color: #1a1a1a;
+  color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm);
 }
 
 .time-section.is-readonly .event-date-picker {
@@ -3664,7 +3926,7 @@ export default {
 
 .field-hint {
   font-size: 13px;
-  color: #6c757d;
+  color: var(--neo-text-muted);
   margin: 0;
 }
 
@@ -3677,10 +3939,10 @@ export default {
   --dp-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --dp-border-radius: 10px;
   --dp-cell-border-radius: 8px;
-  --dp-primary-color: #1a1a1a;
+  --dp-primary-color: var(--neo-text);
   --dp-primary-text-color: #fff;
   --dp-hover-color: #f1f3f5;
-  --dp-hover-text-color: #1a1a1a;
+  --dp-hover-text-color: var(--neo-text);
 }
 
 .event-date-picker :deep(.dp__input_wrap) {
@@ -3689,15 +3951,16 @@ export default {
 
 .event-date-picker :deep(.dp__input) {
   padding: 12px 36px 12px 56px;
-  border: 1px solid #e9ecef;
-  border-radius: 10px;
+  border: none;
+  border-radius: var(--neo-radius-pill);
   font-size: 14px;
   font-family: inherit;
   min-height: 44px;
   width: 100%;
-  background: #fff;
-  color: #1a1a1a;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm);
+  transition: box-shadow 0.2s;
 }
 
 .event-date-picker :deep(.dp__input_icon) {
@@ -3720,18 +3983,18 @@ export default {
 
 .event-date-picker :deep(.dp__input:focus) {
   outline: none;
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+  border-color: var(--neo-text);
+  box-shadow: var(--neo-inset-sm), 0 0 0 2px rgba(232, 149, 111, 0.2);
 }
 
 .event-date-picker :deep(.dp__menu) {
   border-radius: 12px;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  border: none;
+  box-shadow: var(--neo-raised-lg);
 }
 
 .event-date-picker :deep(.dp__action_select) {
-  background: #1a1a1a;
+  background: var(--neo-accent);
 }
 
 .event-time-picker :deep(.dp__input) {
@@ -3763,7 +4026,7 @@ export default {
 .sub-label {
   font-size: 12px;
   font-weight: 500;
-  color: #6c757d;
+  color: var(--neo-text-muted);
 }
 
 .toggle-label.compact {
@@ -3810,8 +4073,8 @@ export default {
 }
 
 .color-circle.active {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(26, 26, 26, 0.25);
+  border-color: var(--neo-bg);
+  box-shadow: var(--neo-raised-sm), 0 0 0 2px var(--neo-accent);
 }
 
 .toggle-row {
@@ -3825,7 +4088,7 @@ export default {
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--neo-text);
   margin-bottom: 0 !important;
 }
 
@@ -3843,12 +4106,13 @@ export default {
 .toggle-switch {
   width: 40px;
   height: 22px;
-  background: #e9ecef;
+  background: var(--neo-bg);
   border-radius: 11px;
   position: relative;
-  transition: background 0.2s;
+  transition: background 0.2s, box-shadow 0.2s;
   flex-shrink: 0;
   pointer-events: none;
+  box-shadow: var(--neo-inset-sm);
 }
 
 .toggle-switch::after {
@@ -3858,14 +4122,14 @@ export default {
   left: 3px;
   width: 16px;
   height: 16px;
-  background: #fff;
+  background: var(--neo-bg);
   border-radius: 50%;
   transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--neo-raised-sm);
 }
 
 .toggle-checkbox:checked + .toggle-switch {
-  background: #1a1a1a;
+  background: var(--neo-accent);
 }
 
 .toggle-checkbox:checked + .toggle-switch::after {
@@ -3915,7 +4179,7 @@ export default {
   .calendar-sidebar {
     width: 100%;
     border-right: none;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: none;
     max-height: 240px;
   }
 
