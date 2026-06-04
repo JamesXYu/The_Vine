@@ -677,7 +677,7 @@
                 <div class="form-group">
                   <label class="sub-label">Start date</label>
                   <VueDatePicker
-                    v-model="eventForm.startDate"
+                    v-model="eventStartDateValue"
                     v-bind="datePickerBind"
                     class="event-date-picker"
                     placeholder="Start date"
@@ -686,7 +686,7 @@
                 <div class="form-group">
                   <label class="sub-label">End date</label>
                   <VueDatePicker
-                    v-model="eventForm.endDate"
+                    v-model="eventEndDateValue"
                     v-bind="datePickerBind"
                     class="event-date-picker"
                     placeholder="End date"
@@ -698,7 +698,7 @@
               <div class="form-group">
                 <label class="sub-label">Date</label>
                 <VueDatePicker
-                  v-model="eventForm.eventDate"
+                  v-model="eventDateValue"
                   v-bind="datePickerBind"
                   class="event-date-picker"
                   placeholder="Select date"
@@ -847,14 +847,15 @@ const datePickerBind = {
   modelType: 'yyyy-MM-dd',
   format: 'MMM d, yyyy',
   autoApply: true,
-  textInput: true,
+  textInput: { openMenu: true, selectOnFocus: false },
   teleport: 'body',
-  timeConfig: { enableTimePicker: false }
+  timeConfig: { enableTimePicker: false },
+  ui: { menu: 'event-date-picker-menu' }
 }
 
 const timePickerBind = {
   autoApply: true,
-  textInput: true,
+  textInput: { openMenu: true, selectOnFocus: false },
   teleport: 'body',
   config: {
     modeHeight: 88
@@ -1060,6 +1061,21 @@ export default {
     const eventEndTime = computed({
       get: () => parseTimeToPicker(eventForm.value.endTime),
       set: (v) => { eventForm.value.endTime = formatPickerToTime(v) }
+    })
+
+    const eventDateValue = computed({
+      get: () => eventForm.value.eventDate,
+      set: (v) => { eventForm.value.eventDate = v ?? '' }
+    })
+
+    const eventStartDateValue = computed({
+      get: () => eventForm.value.startDate,
+      set: (v) => { eventForm.value.startDate = v ?? '' }
+    })
+
+    const eventEndDateValue = computed({
+      get: () => eventForm.value.endDate,
+      set: (v) => { eventForm.value.endDate = v ?? '' }
     })
 
     const {
@@ -2427,6 +2443,9 @@ export default {
       performDeleteEvent,
       editingEventId,
       eventForm,
+      eventDateValue,
+      eventStartDateValue,
+      eventEndDateValue,
       eventStartTime,
       eventEndTime,
       datePickerBind,
@@ -3458,9 +3477,14 @@ export default {
   background: var(--neo-bg);
   border-radius: 12px;
   border: none;
-  overflow: hidden;
+  overflow: visible;
   padding: 8px;
   box-shadow: var(--neo-raised-sm);
+}
+
+.calendar-wrapper :deep(.calendar-root-wrapper) {
+  overflow: hidden;
+  border-radius: 10px;
 }
 
 .calendar-wrapper.is-scroll-month {
@@ -3514,10 +3538,13 @@ export default {
   background: var(--neo-bg) !important;
   box-shadow: inset 0 -1px 0 rgba(163, 177, 198, 0.2);
   display: grid !important;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 8px 12px;
   flex-wrap: nowrap !important;
+  overflow: visible;
+  position: relative;
+  z-index: 20;
 }
 
 .calendar-wrapper :deep(.calendar-header__period-name) {
@@ -3527,16 +3554,18 @@ export default {
   min-width: 0;
   margin-right: 0;
   font-size: 1rem;
+  z-index: 2;
 }
 
 .calendar-wrapper :deep(.calendar-view-toolbar) {
-  grid-column: 2;
+  grid-column: 1 / -1;
   grid-row: 1;
   justify-self: center;
+  z-index: 1;
 }
 
 .calendar-wrapper :deep(.calendar-header__period) {
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 1;
   justify-self: end;
   display: flex;
@@ -3546,15 +3575,18 @@ export default {
   width: auto;
   min-height: 36px;
   gap: 6px;
-  margin-left: 0;
+  z-index: 2;
+  overflow: visible;
+  transform: translateX(-30px);
 }
 
 .calendar-wrapper :deep(.calendar-header__period .date-picker) {
-  position: static;
+  position: relative;
   transform: none;
   min-width: auto !important;
   width: fit-content;
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .calendar-wrapper :deep(.date-picker__value-display) {
@@ -3563,11 +3595,13 @@ export default {
   box-shadow: var(--neo-inset-sm) !important;
   border-radius: var(--neo-radius-pill) !important;
   color: var(--neo-text) !important;
-  height: 26px !important;
-  min-height: 26px;
-  padding: 0 10px !important;
-  font-size: 12px !important;
-  gap: 4px;
+  height: auto !important;
+  min-height: 32px;
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  font-family: inherit;
+  font-weight: 500;
+  gap: 6px;
 }
 
 .calendar-wrapper :deep(.calendar-header__chevron-arrows),
@@ -3577,15 +3611,26 @@ export default {
 
 .calendar-wrapper :deep(.calendar-header__period .date-picker__value-display) {
   min-width: 0;
-  max-width: 9rem;
+  max-width: none;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
 }
 
 .calendar-wrapper :deep(.calendar-header__period .date-picker__value-display-text) {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
+  font-family: inherit;
+}
+
+.calendar-wrapper :deep(.date-picker__week-picker) {
+  z-index: 200;
+  font-family: inherit;
+}
+
+.calendar-wrapper :deep(.date-picker__week-picker .date-picker__week-picker-navigation),
+.calendar-wrapper :deep(.date-picker__week-picker .date-picker__day-names),
+.calendar-wrapper :deep(.date-picker__week-picker .week span) {
+  font-family: inherit;
 }
 
 .calendar-view-toolbar {
@@ -3936,7 +3981,8 @@ export default {
 
 .event-date-picker {
   width: 100%;
-  --dp-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dp-font-family: inherit;
+  --dp-font-size: 14px;
   --dp-border-radius: 10px;
   --dp-cell-border-radius: 8px;
   --dp-primary-color: var(--neo-text);
@@ -3950,7 +3996,7 @@ export default {
 }
 
 .event-date-picker :deep(.dp__input) {
-  padding: 12px 36px 12px 56px;
+  padding: 12px 36px 12px 26px;
   border: none;
   border-radius: var(--neo-radius-pill);
   font-size: 14px;
@@ -3964,7 +4010,7 @@ export default {
 }
 
 .event-date-picker :deep(.dp__input_icon) {
-  inset-inline-start: 16px;
+  inset-inline-start: 0;
 }
 
 .event-date-picker :deep(.dp__input_icon svg),
@@ -3999,7 +4045,7 @@ export default {
 
 .event-time-picker :deep(.dp__input) {
   min-height: 44px;
-  padding: 12px 36px 12px 56px;
+  padding: 12px 36px 12px 26px;
   font-size: 14px;
 }
 
@@ -4205,9 +4251,17 @@ export default {
 }
 </style>
 
-<!-- Teleported time-picker menu (ui.menu class); scoped styles do not apply -->
+<!-- Teleported picker menus (ui.menu class); scoped styles do not apply -->
 <style>
+.dp__menu.event-date-picker-menu {
+  font-family: inherit;
+  --dp-font-family: inherit;
+  --dp-font-size: 14px;
+}
+
 .dp__menu.event-time-picker-menu {
+  font-family: inherit;
+  --dp-font-family: inherit;
   --dp-time-font-size: 1rem;
   --dp-time-inc-dec-button-size: 22px;
   --dp-menu-min-width: 260px;
