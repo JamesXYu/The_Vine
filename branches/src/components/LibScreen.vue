@@ -18,7 +18,7 @@
             placeholder="Search documents..." 
           />
         </div>
-        <button v-if="isAdmin || activeTab !== 'public'" class="btn-primary" @click="createNewDocument">
+        <button v-if="!isMobile && (isAdmin || activeTab !== 'public')" class="btn-primary" @click="createNewDocument">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -29,30 +29,49 @@
     </header>
 
     <!-- Tabs -->
-    <div class="tabs">
-      <button 
-        :class="{ active: activeTab === 'personal' }" 
-        @click="activeTab = 'personal'"
-        class="tab"
+    <div class="tabs-row">
+      <div class="tabs">
+        <button 
+          :class="{ active: activeTab === 'personal' }" 
+          @click="activeTab = 'personal'"
+          class="tab"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span class="tab-label-full">Personal Library</span>
+          <span class="tab-label-short">Personal</span>
+          <span class="tab-count">{{ personalDocuments.length }}</span>
+        </button>
+        <button 
+          :class="{ active: activeTab === 'public' }" 
+          @click="activeTab = 'public'"
+          class="tab"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          <span class="tab-label-full">Public Library</span>
+          <span class="tab-label-short">Public</span>
+          <span class="tab-count public">{{ publicLibraryTabCount }}</span>
+        </button>
+      </div>
+      <button
+        v-if="isMobile"
+        type="button"
+        class="library-options-btn"
+        aria-label="Library options"
+        @click="showLibraryOptions = true"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+          <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+          <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/>
+          <line x1="17" y1="16" x2="23" y2="16"/>
         </svg>
-        Personal Library
-        <span class="tab-count">{{ personalDocuments.length }}</span>
-      </button>
-      <button 
-        :class="{ active: activeTab === 'public' }" 
-        @click="activeTab = 'public'"
-        class="tab"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="2" y1="12" x2="22" y2="12"/>
-          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-        </svg>
-        Public Library
-        <span class="tab-count public">{{ publicLibraryTabCount }}</span>
       </button>
     </div>
 
@@ -82,8 +101,8 @@
         </template>
       </div>
 
-      <!-- Actions Bar -->
-      <div class="actions-bar">
+      <!-- Actions Bar (desktop) -->
+      <div v-if="!isMobile" class="actions-bar">
         <div class="actions-left">
           <div class="sort-options">
             <button 
@@ -118,10 +137,10 @@
                 <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
                 <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
                 <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-            </svg>
-          </button>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
         <button class="btn-secondary" @click="showNewFolderModal = true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -270,7 +289,7 @@
       </div>
 
       <!-- Actions Bar for Public Library -->
-      <div v-if="isAdmin" class="actions-bar">
+      <div v-if="!isMobile && isAdmin" class="actions-bar">
         <div class="actions-left">
           <div class="sort-options">
             <button 
@@ -615,6 +634,88 @@
       </div>
     </div>
 
+    <!-- Mobile FAB: New Folder -->
+    <button
+      v-if="isMobile && (activeTab === 'personal' || (activeTab === 'public' && isAdmin))"
+      type="button"
+      class="library-fab"
+      aria-label="New folder"
+      @click="activeTab === 'public' ? showNewPublicFolderModal = true : showNewFolderModal = true"
+    >
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+
+    <!-- Mobile Options Sheet -->
+    <div
+      v-if="isMobile && showLibraryOptions"
+      class="library-options-overlay"
+      @click.self="showLibraryOptions = false"
+    >
+      <div class="library-options-sheet" role="dialog" aria-label="Library options">
+        <div class="library-options-sheet__head">
+          <h3>Options</h3>
+          <button
+            type="button"
+            class="library-options-sheet__close"
+            aria-label="Close"
+            @click="showLibraryOptions = false"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="library-options-sheet__section">
+          <span class="library-options-sheet__label">Sort by</span>
+          <div class="sort-options">
+            <button
+              v-for="option in sortOptions"
+              :key="option.value"
+              :class="{ active: sortBy === option.value }"
+              class="sort-btn"
+              @click="sortBy = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+        <div class="library-options-sheet__section">
+          <span class="library-options-sheet__label">Layout</span>
+          <div class="view-toggle">
+            <button
+              :class="{ active: viewMode === 'list' }"
+              class="view-btn"
+              title="List view"
+              @click="viewMode = 'list'"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              List
+            </button>
+            <button
+              :class="{ active: viewMode === 'grid' }"
+              class="view-btn"
+              title="Grid view"
+              @click="viewMode = 'grid'"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              Grid
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast -->
     <div v-if="toast" class="toast" :class="toastType">
       {{ toast }}
@@ -627,6 +728,7 @@ import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../supabase'
 import { useRouter } from 'vue-router'
 import { useDatabase } from '../composables/useDatabase'
+import { useIsMobile } from '../composables/useIsMobile'
 import { DEFAULT_TAG_COLOR, TAG_COLOR_PALETTE } from '../constants/tagColorPalette'
 
 export default {
@@ -634,6 +736,7 @@ export default {
   setup() {
     const router = useRouter()
     const db = useDatabase()
+    const { isMobile } = useIsMobile()
     
     // State
     const activeTab = ref('personal')
@@ -643,7 +746,8 @@ export default {
       { value: 'name', label: 'Name' },
       { value: 'created', label: 'Created' }
     ]
-    const viewMode = ref('grid') // 'grid' or 'list'
+    const viewMode = ref('list') // 'grid' or 'list'
+    const showLibraryOptions = ref(false)
     const currentFolder = ref(null)
     const folderMenuId = ref(null)
     const currentUser = ref(null)
@@ -1489,11 +1593,13 @@ export default {
     })
 
     return {
+      isMobile,
       activeTab,
       searchQuery,
       sortBy,
       sortOptions,
       viewMode,
+      showLibraryOptions,
       currentFolder,
       currentPublicFolder,
       folderMenuId,
@@ -1648,10 +1754,16 @@ export default {
 }
 
 /* Tabs */
+.tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
 .tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
   padding: 6px;
   background: var(--neo-bg);
   border-radius: var(--neo-radius);
@@ -1700,6 +1812,15 @@ export default {
 .tab-count.public {
   background: #e3f2fd;
   color: #1976d2;
+}
+
+.tab-label-short {
+  display: none;
+}
+
+.library-fab,
+.library-options-overlay {
+  display: none;
 }
 
 /* Breadcrumb */
@@ -2380,5 +2501,255 @@ export default {
 .color-circle.active {
   border-color: #fff;
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(26, 26, 26, 0.25);
+}
+
+@media (max-width: 768px) {
+  .library-page {
+    padding: 16px;
+    padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 72px);
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .header-left h1 {
+    font-size: 24px;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
+  .search-box input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .header-actions .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .tabs-row {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tabs {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    max-width: 100%;
+    flex-direction: row;
+    box-sizing: border-box;
+  }
+
+  .tab {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    padding: 10px 8px;
+    font-size: 15px;
+    gap: 6px;
+  }
+
+  .tab-label-full {
+    display: none;
+  }
+
+  .tab-label-short {
+    display: inline;
+  }
+
+  .tab svg {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+  }
+
+  .breadcrumb {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .library-options-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 10px;
+    background: var(--neo-bg);
+    color: var(--neo-text);
+    cursor: pointer;
+    box-shadow: var(--neo-raised-sm);
+  }
+
+  .library-options-btn:active {
+    transform: scale(0.96);
+  }
+
+  .library-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
+    z-index: 55;
+    width: 52px;
+    height: 52px;
+    border: none;
+    border-radius: 50%;
+    background: var(--neo-accent);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(232, 149, 111, 0.45);
+    cursor: pointer;
+  }
+
+  .library-fab:active {
+    transform: scale(0.96);
+  }
+
+  .library-options-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(0, 0, 0, 0.45);
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .library-options-sheet {
+    width: 100%;
+    max-height: min(50vh, 360px);
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    background: var(--neo-bg);
+    border-radius: 20px 20px 0 0;
+    box-shadow: var(--neo-raised-lg);
+    box-sizing: border-box;
+  }
+
+  .library-options-sheet__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .library-options-sheet__head h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--neo-text);
+  }
+
+  .library-options-sheet__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: var(--neo-bg);
+    color: var(--neo-text-muted);
+    cursor: pointer;
+    box-shadow: var(--neo-inset-sm);
+  }
+
+  .library-options-sheet__section {
+    margin-bottom: 20px;
+  }
+
+  .library-options-sheet__section:last-child {
+    margin-bottom: 0;
+  }
+
+  .library-options-sheet__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--neo-text-muted);
+    margin-bottom: 10px;
+  }
+
+  .library-options-sheet .sort-options,
+  .library-options-sheet .view-toggle {
+    width: 100%;
+  }
+
+  .library-options-sheet .sort-btn {
+    flex: 1;
+    text-align: center;
+  }
+
+  .library-options-sheet .view-btn {
+    flex: 1;
+    gap: 6px;
+  }
+
+  .items-grid {
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    width: 100%;
+  }
+
+  .items-grid.list .item-card {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .items-grid.list .item-date,
+  .items-grid.list .item-author,
+  .items-grid.list .item-count {
+    min-width: 0;
+  }
+
+  .modal {
+    margin: 16px;
+    padding: 24px;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+  }
+
+  .color-palette {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+  }
+
+  .color-circle {
+    width: 100%;
+    aspect-ratio: 1;
+    height: auto;
+  }
+
+  .toast {
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
 }
 </style>

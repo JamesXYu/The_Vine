@@ -5,6 +5,9 @@
   font-family: inherit;
   text-align: left;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
@@ -64,4 +67,34 @@
 .calendar-page .calendar-wrapper .calendar-week__event .calendar-week__event-info-wrapper {
   padding: 2px !important;
   height: 100%;
+}
+
+/* Mobile: long-press before drag — hold feedback */
+.calendar-page .calendar-week__event.is-event-hold-pending {
+  outline: 2px dashed color-mix(in srgb, var(--neo-accent, #e8956f) calc(40% + var(--hold-progress, 0) * 60%), transparent);
+  outline-offset: 2px;
+  opacity: calc(1 - var(--hold-progress, 0) * 0.15);
+  transition: opacity 0.05s linear, outline-color 0.05s linear;
+}
+
+/* Active event drag (mobile long-press + desktop mouse drag) */
+.calendar-page .calendar-week__event.is-event-drag-editing {
+  overflow: visible !important;
+  z-index: 10 !important;
+  outline: 2px dashed var(--neo-accent, #e8956f) !important;
+  outline-offset: 2px;
+}
+
+.calendar-page .calendar-week__events:has(.is-event-drag-editing) {
+  overflow: visible !important;
+}
+
+.calendar-page .calendar-week__event.is-event-drag-editing .vine-week-event {
+  opacity: 0.88 !important;
+  box-shadow:
+    0 10px 28px rgba(45, 52, 54, 0.22),
+    0 0 0 4px color-mix(in srgb, var(--neo-accent, #e8956f) 18%, transparent) !important;
+  filter: brightness(1.03);
+  transform: none !important;
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }

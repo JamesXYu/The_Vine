@@ -24,6 +24,76 @@
       </div>
     </header>
 
+    <!-- Mobile: Outlook-style top bar -->
+    <header class="calendar-mobile-bar">
+      <button
+        type="button"
+        class="calendar-mobile-bar__menu"
+        aria-label="Show calendars"
+        @click="mobileCalendarSheetOpen = true"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+        <span>Calendars</span>
+      </button>
+      <h2 class="calendar-mobile-bar__title">{{ mobileActiveCalendarLabel }}</h2>
+      <button
+        type="button"
+        class="calendar-mobile-bar__info"
+        aria-label="Calendar info"
+        :disabled="!canOpenCalendarInfo"
+        @click="openCalendarInfoPanel"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Mobile: date navigation + view switcher (reliable touch targets) -->
+    <div class="calendar-mobile-nav">
+      <button
+        type="button"
+        class="calendar-mobile-nav__arrow"
+        aria-label="Previous"
+        @click="navigateCalendarPeriod('previous')"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+      <p class="calendar-mobile-nav__period">{{ mobilePeriodLabel }}</p>
+      <button
+        type="button"
+        class="calendar-mobile-nav__arrow"
+        aria-label="Next"
+        @click="navigateCalendarPeriod('next')"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+      </button>
+    </div>
+    <div class="calendar-mobile-view-tabs" role="tablist" aria-label="Calendar view">
+      <button
+        v-for="opt in calendarViewModes"
+        :key="opt.id"
+        type="button"
+        role="tab"
+        class="calendar-mobile-view-tab"
+        :class="{ active: qalendarMode === opt.id }"
+        :aria-selected="qalendarMode === opt.id"
+        @click="setCalendarViewMode(opt.id)"
+      >
+        {{ opt.label }}
+      </button>
+    </div>
+
     <div class="calendar-body">
       <aside class="calendar-sidebar">
         <section class="calendar-sidebar__tags">
@@ -175,12 +245,90 @@
             @updated-period="onScrollMonthPeriodUpdated"
           />
           <div
-            v-if="dragPreview"
+            v-if="activeDragPreview"
             class="drag-preview"
-            :style="dragPreview"
+            :style="activeDragPreview"
+          ></div>
+          <div
+            v-if="touchHoldIndicator"
+            class="touch-hold-indicator"
+            :style="touchHoldIndicator"
           ></div>
         </div>
       </main>
+    </div>
+
+    <button
+      type="button"
+      class="calendar-mobile-fab"
+      aria-label="Add event"
+      @click="openNewEventFromMobile"
+    >
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+
+    <div
+      v-if="mobileCalendarSheetOpen"
+      class="calendar-mobile-sheet-overlay"
+      @click.self="mobileCalendarSheetOpen = false"
+    >
+      <div class="calendar-mobile-sheet" role="dialog" aria-label="Choose calendar">
+        <div class="calendar-mobile-sheet__head">
+          <h3>Calendars</h3>
+          <button
+            type="button"
+            class="calendar-mobile-sheet__close"
+            aria-label="Close"
+            @click="mobileCalendarSheetOpen = false"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="calendar-mobile-sheet__list">
+          <button
+            type="button"
+            class="calendar-mobile-sheet__item"
+            :class="{ active: activeTagId === null }"
+            @click="selectMobileCalendar(null)"
+          >
+            <span class="calendar-mobile-sheet__dot calendar-mobile-sheet__dot--all"></span>
+            <span class="calendar-mobile-sheet__label">All calendars</span>
+            <svg v-if="activeTagId === null" class="calendar-mobile-sheet__check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+          <button
+            v-for="tag in tags"
+            :key="tag.id"
+            type="button"
+            class="calendar-mobile-sheet__item"
+            :class="{ active: activeTagId === tag.id }"
+            @click="selectMobileCalendar(tag.id)"
+          >
+            <span class="calendar-mobile-sheet__dot" :style="{ background: tag.color || 'var(--neo-accent)' }"></span>
+            <span class="calendar-mobile-sheet__label">
+              {{ tag.name }}
+              <span v-if="tag.is_shared" class="calendar-mobile-sheet__shared">Shared</span>
+            </span>
+            <svg v-if="activeTagId === tag.id" class="calendar-mobile-sheet__check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+        </div>
+        <button type="button" class="calendar-mobile-sheet__create" @click="openCreateFromSheet">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New calendar
+        </button>
+      </div>
     </div>
 
     <!-- Calendar info modal -->
@@ -616,8 +764,13 @@
     </div>
 
     <!-- Event modal -->
-    <div v-if="showEventModal" class="modal-overlay event-modal-overlay" @click.self="closeEventModal">
-      <div class="modal event-modal">
+    <div
+      v-if="showEventModal"
+      class="modal-overlay event-modal-overlay"
+      :class="{ 'event-modal-overlay--mobile': isMobile }"
+      @click.self="closeEventModal"
+    >
+      <div class="modal event-modal" :class="{ 'event-modal--mobile': isMobile }">
         <h3>{{ editingEventId ? (eventViewOnly ? 'Event details' : 'Edit event') : 'New event' }}</h3>
 
         <form @submit.prevent="saveEvent">
@@ -736,7 +889,7 @@
             <textarea
               v-model="eventForm.description"
               class="input textarea"
-              rows="3"
+              :rows="isMobile ? 1 : 3"
               placeholder="Add a note"
               :readonly="eventViewOnly"
             ></textarea>
@@ -790,6 +943,11 @@ import {
   isPendingCalendarMember
 } from '../composables/useCalendarEvents'
 import { useCalendarDragCreate, buildWeekPeriod, getWeekStart } from '../composables/useCalendarDragCreate'
+import { useCalendarTouchDragCreate } from '../composables/useCalendarTouchDragCreate'
+import { useCalendarEventTouchDrag } from '../composables/useCalendarEventTouchDrag'
+import { usePreventTouchCallout } from '../composables/usePreventTouchCallout'
+import { useCalendarEventDesktopDragVisual } from '../composables/useCalendarEventDesktopDragVisual'
+import { useIsMobile } from '../composables/useIsMobile'
 import { DEFAULT_TAG_COLOR, TAG_COLOR_PALETTE } from '../constants/tagColorPalette'
 
 /** Default week viewport: 8am–3pm. Full day remains scrollable — do not use dayBoundaries. */
@@ -992,6 +1150,8 @@ export default {
     const loadError = ref('')
     const saving = ref(false)
     const activeTagId = ref(null)
+    const mobileCalendarSheetOpen = ref(false)
+    const { isMobile } = useIsMobile()
     const showEventModal = ref(false)
     const eventViewOnly = ref(false)
     const showCreateCalendarModal = ref(false)
@@ -1026,7 +1186,7 @@ export default {
     }
     const qalendarRef = ref(null)
     const calendarPeriod = ref(buildWeekPeriod())
-    const qalendarMode = ref('week')
+    const qalendarMode = ref(isMobile.value ? 'day' : 'week')
     /** After save/delete: scroll back to event time or pre-save viewport */
     const pendingScrollAfterSave = ref(null)
     /** User scrolled week grid manually — skip auto 8am–3pm until calendar/view change */
@@ -1106,6 +1266,45 @@ export default {
     const activeCalendar = computed(() =>
       tags.value.find(t => t.id === activeTagId.value) || null
     )
+
+    const mobileActiveCalendarLabel = computed(() => {
+      if (!activeTagId.value) return 'All calendars'
+      const tag = tags.value.find(t => t.id === activeTagId.value)
+      if (!tag) return 'Calendar'
+      return truncateTagLabel(tag.name)
+    })
+
+    const mobilePeriodLabel = computed(() => {
+      const period = calendarPeriod.value
+      if (!period?.selectedDate) return 'Calendar'
+      const selected = new Date(period.selectedDate)
+      if (Number.isNaN(selected.getTime())) return 'Calendar'
+
+      if (qalendarMode.value === 'day') {
+        return selected.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        })
+      }
+
+      if (qalendarMode.value === 'month') {
+        return selected.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      }
+
+      const start = getWeekStart(period.start ?? period.selectedDate)
+      if (!start) return 'Calendar'
+      const daySpan = isMobile.value ? 3 : 7
+      const end = new Date(start)
+      end.setDate(end.getDate() + daySpan - 1)
+
+      const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+      if (sameMonth) {
+        return `${start.toLocaleDateString('en-US', { month: 'long' })} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
+      }
+      return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    })
 
     const canDeleteCalendar = computed(() => {
       const cal = activeCalendar.value
@@ -1292,9 +1491,9 @@ export default {
       return {
         week: {
           startsOn: 'sunday',
-          nDays: 7
+          nDays: isMobile.value ? 3 : 7
         },
-        defaultMode: 'week',
+        defaultMode: isMobile.value ? 'day' : 'week',
         locale: 'en-US',
         style: {
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -1525,23 +1724,82 @@ export default {
       borderColor: tag.color
     })
 
+    const handleDragCreateRange = ({ start, end, allDay }) => {
+      if (!tags.value.length) {
+        loadError.value = 'Create a calendar first, then drag on the grid to add an event.'
+        return
+      }
+      const tagId = activeTagId.value || tags.value.find(t => canEditTag(t.id))?.id
+      if (!tagId || !canEditTag(tagId)) {
+        loadError.value = calendarEditDeniedMessage
+        return
+      }
+      if (!activeTagId.value) activeTagId.value = tagId
+      openNewEvent(start, end, allDay)
+    }
+
     const { dragPreview, ensureAttach: ensureDragCreate, detach: detachDragCreate } = useCalendarDragCreate({
       wrapperRef: calendarWrapperRef,
       getPeriod: () => calendarPeriod.value,
-      onRangeSelected: ({ start, end, allDay }) => {
-        if (!tags.value.length) {
-          loadError.value = 'Create a calendar first, then drag on the grid to add an event.'
-          return
-        }
-        const tagId = activeTagId.value || tags.value.find(t => canEditTag(t.id))?.id
-        if (!tagId || !canEditTag(tagId)) {
-          loadError.value = calendarEditDeniedMessage
-          return
-        }
-        if (!activeTagId.value) activeTagId.value = tagId
-        openNewEvent(start, end, allDay)
-      }
+      onRangeSelected: handleDragCreateRange
     })
+
+    const {
+      dragPreview: touchDragPreview,
+      touchHoldIndicator,
+      ensureAttach: ensureTouchDragCreate,
+      detach: detachTouchDragCreate
+    } = useCalendarTouchDragCreate({
+      wrapperRef: calendarWrapperRef,
+      getPeriod: () => calendarPeriod.value,
+      getScrollEl: () => calendarWrapperRef.value?.querySelector('.calendar-week__wrapper') ?? null,
+      onRangeSelected: handleDragCreateRange
+    })
+
+    const {
+      ensureAttach: ensureEventTouchDrag,
+      detach: detachEventTouchDrag
+    } = useCalendarEventTouchDrag({
+      wrapperRef: calendarWrapperRef,
+      getScrollEl: () => calendarWrapperRef.value?.querySelector('.calendar-week__wrapper') ?? null,
+      getEventTimes: (eventId) => {
+        const qEvent = qalendarEvents.value.find((e) => e.id === eventId)
+        return qEvent?.time ?? null
+      },
+      canEditEvent: (eventId) => {
+        const db = dbEventById(eventId)
+        return db ? canEditTag(db.tag_id) : false
+      },
+      onEventDragged: (qEvent) => onEventDragged(qEvent)
+    })
+
+    const activeDragPreview = computed(() =>
+      isMobile.value ? touchDragPreview.value : dragPreview.value
+    )
+
+    const { attach: attachTouchCalloutGuards, detach: detachTouchCalloutGuards } =
+      usePreventTouchCallout(calendarWrapperRef)
+
+    const {
+      ensureAttach: ensureDesktopDragVisual,
+      detach: detachDesktopDragVisual
+    } = useCalendarEventDesktopDragVisual({ wrapperRef: calendarWrapperRef })
+
+    const syncDragCreateListeners = async () => {
+      if (isMobile.value) {
+        detachDragCreate()
+        detachDesktopDragVisual()
+        await ensureTouchDragCreate()
+        await ensureEventTouchDrag()
+        attachTouchCalloutGuards()
+        return
+      }
+      detachTouchDragCreate()
+      detachEventTouchDrag()
+      detachTouchCalloutGuards()
+      await ensureDragCreate()
+      await ensureDesktopDragVisual()
+    }
 
     const weekPeriodKey = (period) => {
       const start = getWeekStart(period?.start ?? period?.selectedDate)
@@ -1610,13 +1868,55 @@ export default {
       { id: 'month', label: 'Month' }
     ]
 
+    const shiftPeriodByDirection = (direction) => {
+      const period = calendarPeriod.value
+      if (!period?.selectedDate) return
+      const delta = direction === 'next' ? 1 : -1
+      const selected = new Date(period.selectedDate)
+      if (Number.isNaN(selected.getTime())) return
+
+      if (qalendarMode.value === 'day') {
+        selected.setDate(selected.getDate() + delta)
+        calendarPeriod.value = { start: selected, end: selected, selectedDate: selected }
+      } else if (qalendarMode.value === 'week') {
+        const step = isMobile.value ? 3 : 7
+        selected.setDate(selected.getDate() + delta * step)
+        calendarPeriod.value = buildWeekPeriod(selected)
+      } else {
+        selected.setMonth(selected.getMonth() + delta)
+        const start = new Date(selected.getFullYear(), selected.getMonth(), 1)
+        const end = new Date(selected.getFullYear(), selected.getMonth() + 1, 0)
+        calendarPeriod.value = { start, end, selectedDate: selected }
+      }
+      syncQalendarHeaderPeriod(calendarPeriod.value)
+    }
+
     const setCalendarViewMode = (mode) => {
-      if (!mode || qalendarMode.value === mode) return
-      qalendarRef.value?.handleChangeMode?.(mode)
+      if (!mode) return
+      if (qalendarMode.value === mode) return
+      if (qalendarRef.value?.handleChangeMode) {
+        qalendarRef.value.handleChangeMode(mode)
+      } else {
+        qalendarMode.value = mode
+      }
+    }
+
+    let mobileDefaultViewApplied = false
+
+    const applyMobileDefaultView = async () => {
+      if (!isMobile.value || mobileDefaultViewApplied) return
+      mobileDefaultViewApplied = true
+      qalendarMode.value = 'day'
+      await nextTick()
+      qalendarRef.value?.handleChangeMode?.('day')
     }
 
     const navigateCalendarPeriod = (direction) => {
-      qalendarRef.value?.goToPeriod?.(direction)
+      if (qalendarRef.value?.goToPeriod) {
+        qalendarRef.value.goToPeriod(direction)
+        return
+      }
+      shiftPeriodByDirection(direction)
     }
 
     watch(qalendarMode, async (mode) => {
@@ -1624,6 +1924,7 @@ export default {
         await nextTick()
         syncQalendarHeaderPeriod(calendarPeriod.value)
         await syncCalendarHeaderTarget()
+        if (isMobile.value) await syncDragCreateListeners()
         return
       }
       if (mode === 'week') {
@@ -1632,11 +1933,12 @@ export default {
         ensureWeekScrollTracking()
       }
       await syncCalendarHeaderTarget()
+      if (isMobile.value) await syncDragCreateListeners()
     })
 
     watch(loading, async (isLoading) => {
       if (!isLoading) {
-        await ensureDragCreate()
+        await syncDragCreateListeners()
         await syncCalendarHeaderTarget()
       }
     })
@@ -1656,6 +1958,14 @@ export default {
       { flush: 'post' }
     )
 
+    watch(isMobile, async (mobile, wasMobile) => {
+      await syncDragCreateListeners()
+      if (mobile && !wasMobile) {
+        mobileDefaultViewApplied = false
+        await applyMobileDefaultView()
+      }
+    })
+
     let unsubscribe = null
     onMounted(async () => {
       await init()
@@ -1666,8 +1976,9 @@ export default {
         }
         refreshEvents({ preserveScroll: true, silent: true })
       })
-      await ensureDragCreate()
+      await syncDragCreateListeners()
       await nextTick()
+      await applyMobileDefaultView()
       scheduleDefaultWeekViewport()
       ensureWeekScrollTracking()
       await syncCalendarHeaderTarget()
@@ -1687,6 +1998,10 @@ export default {
     onUnmounted(() => {
       if (unsubscribe) unsubscribe()
       detachDragCreate()
+      detachTouchDragCreate()
+      detachEventTouchDrag()
+      detachDesktopDragVisual()
+      detachTouchCalloutGuards()
       clearScrollAfterSavePending()
       detachWeekScrollListener()
     })
@@ -1777,6 +2092,17 @@ export default {
       showCreateCalendarModal.value = true
     }
 
+    const selectMobileCalendar = (tagId) => {
+      activeTagId.value = tagId
+      if (tagId) eventForm.value.tagId = tagId
+      mobileCalendarSheetOpen.value = false
+    }
+
+    const openCreateFromSheet = () => {
+      mobileCalendarSheetOpen.value = false
+      openCreateCalendarModal()
+    }
+
     const saveNewCalendar = async () => {
       const name = newCalendarName.value.trim()
       if (!name) return
@@ -1836,7 +2162,7 @@ export default {
 
     const openNewEvent = (startHint, endHint, allDay = false) => {
       if (!tags.value.length) {
-        loadError.value = 'Create a calendar first, then drag on the grid to add an event.'
+        loadError.value = 'Create a calendar first, then use + to add an event.'
         return
       }
       const tagId = activeTagId.value || tags.value.find(t => canEditTag(t.id))?.id
@@ -1848,6 +2174,10 @@ export default {
       eventViewOnly.value = false
       resetEventForm(startHint, endHint, allDay)
       showEventModal.value = true
+    }
+
+    const openNewEventFromMobile = () => {
+      openNewEvent()
     }
 
     const onEditEvent = (payload) => {
@@ -2336,15 +2666,23 @@ export default {
     }
 
     return {
+      isMobile,
       loading,
       loadError,
       saving,
       tags,
       activeTagId,
+      mobileCalendarSheetOpen,
+      mobileActiveCalendarLabel,
+      mobilePeriodLabel,
+      selectMobileCalendar,
+      openCreateFromSheet,
       calendarWrapperRef,
       calendarHeaderTarget,
       qalendarRef,
       dragPreview,
+      activeDragPreview,
+      touchHoldIndicator,
       activeCalendar,
       canDeleteCalendar,
       canOpenCalendarInfo,
@@ -2459,6 +2797,7 @@ export default {
       openCreateCalendarModal,
       saveNewCalendar,
       openNewEvent,
+      openNewEventFromMobile,
       onEditEvent,
       onDeleteEvent,
       onEventDragged,
@@ -3760,6 +4099,26 @@ export default {
   transform: translateY(-1px);
 }
 
+.calendar-wrapper :deep(.calendar-week__event.is-event-drag-editing) {
+  overflow: visible !important;
+  outline: 2px dashed var(--neo-accent) !important;
+  outline-offset: 2px;
+  z-index: 10 !important;
+}
+
+.calendar-wrapper :deep(.calendar-week__events:has(.is-event-drag-editing)) {
+  overflow: visible !important;
+}
+
+.calendar-wrapper :deep(.calendar-week__event.is-event-drag-editing .vine-week-event) {
+  opacity: 0.88 !important;
+  box-shadow:
+    0 10px 28px rgba(45, 52, 54, 0.22),
+    0 0 0 4px color-mix(in srgb, var(--neo-accent) 18%, transparent) !important;
+  filter: brightness(1.03);
+  transform: none !important;
+}
+
 .calendar-wrapper :deep(.vine-week-event.is-rsvp-pending) {
   background:
     repeating-linear-gradient(
@@ -3817,6 +4176,22 @@ export default {
   box-shadow: var(--neo-raised-sm);
   pointer-events: none;
   z-index: 50;
+}
+
+.touch-hold-indicator {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  margin-top: -22px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 51;
+  background: color-mix(in srgb, var(--neo-accent) 12%, transparent);
+  border: 2px solid var(--neo-accent);
+  opacity: calc(0.35 + var(--hold-progress, 0) * 0.65);
+  transform: scale(calc(0.75 + var(--hold-progress, 0) * 0.35));
+  transition: opacity 0.05s linear, transform 0.05s linear;
 }
 
 .error-banner {
@@ -4197,56 +4572,497 @@ export default {
   margin-left: auto;
 }
 
+/* Mobile-only chrome — hidden on desktop */
+.calendar-mobile-bar,
+.calendar-mobile-nav,
+.calendar-mobile-view-tabs,
+.calendar-mobile-fab,
+.calendar-mobile-sheet-overlay {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .form-row {
     grid-template-columns: 1fr;
   }
 
   .calendar-page {
-    height: auto;
-    min-height: 100vh;
-    overflow: auto;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    margin-bottom: calc(-1 * (var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px)));
   }
 
-  .calendar-topbar {
-    flex-direction: column;
-    align-items: stretch;
+  .calendar-topbar,
+  .calendar-sidebar {
+    display: none !important;
   }
 
-  .calendar-topbar__actions {
-    flex-wrap: wrap;
+  /* Outlook-style compact top bar */
+  .calendar-mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    background: var(--neo-bg);
+    border-bottom: 1px solid rgba(163, 177, 198, 0.25);
+    z-index: 30;
+  }
+
+  .calendar-mobile-bar__menu {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: var(--neo-radius-md);
+    background: var(--neo-bg);
+    box-shadow: var(--neo-inset-sm);
+    color: var(--neo-text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+
+  .calendar-mobile-bar__title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    text-align: center;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--neo-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-mobile-bar__info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--neo-text-muted);
+    cursor: pointer;
+  }
+
+  .calendar-mobile-bar__info:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* Outlook-style date navigation — large touch targets */
+  .calendar-mobile-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 6px 12px 4px;
+    background: var(--neo-bg);
+    border-bottom: 1px solid rgba(163, 177, 198, 0.15);
+  }
+
+  .calendar-mobile-nav__arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--neo-bg);
+    color: var(--neo-text);
+    box-shadow: var(--neo-raised-sm);
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .calendar-mobile-nav__arrow:active {
+    box-shadow: var(--neo-inset-sm);
+  }
+
+  .calendar-mobile-nav__period {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--neo-text);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-mobile-view-tabs {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 6px 12px 8px;
+    background: var(--neo-bg);
+    border-bottom: 1px solid rgba(163, 177, 198, 0.2);
+  }
+
+  .calendar-mobile-view-tab {
+    flex: 1;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: var(--neo-radius-pill);
+    background: transparent;
+    color: var(--neo-text-muted);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .calendar-mobile-view-tab.active {
+    background: var(--neo-accent);
+    color: #fff;
+    box-shadow: var(--neo-raised-sm);
+  }
+
+  /* Suppress Chrome / Google app long-press "More actions" on the grid */
+  .calendar-page,
+  .calendar-wrapper,
+  .calendar-wrapper :deep(.calendar-week),
+  .calendar-wrapper :deep(.calendar-week__day),
+  .calendar-wrapper :deep(.calendar-week__events),
+  .calendar-wrapper :deep(.calendar-week__event),
+  .calendar-wrapper :deep(.vine-week-event),
+  .calendar-wrapper :deep(.calendar-month__weekday) {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .calendar-wrapper :deep(.calendar-week__wrapper) {
+    touch-action: pan-y;
   }
 
   .calendar-body {
-    flex-direction: column;
-    overflow: visible;
-  }
-
-  .calendar-sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: none;
-    max-height: 240px;
-  }
-
-  .calendar-tag-list {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .calendar-tag-list .folder-tag,
-  .calendar-tag-list .calendar-all-btn {
-    width: 100%;
-    max-width: none;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .calendar-main {
-    min-height: 60vh;
-    overflow: visible;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
   }
 
   .calendar-wrapper {
-    min-height: 420px;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* Outlook-style FAB */
+  .calendar-mobile-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
+    z-index: 55;
+    width: 52px;
+    height: 52px;
+    border: none;
+    border-radius: 50%;
+    background: var(--neo-accent);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(232, 149, 111, 0.45);
+    cursor: pointer;
+  }
+
+  .calendar-mobile-fab:active {
+    transform: scale(0.96);
+  }
+
+  /* Outlook-style calendars bottom sheet */
+  .calendar-mobile-sheet-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(0, 0, 0, 0.45);
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .calendar-mobile-sheet {
+    width: 100%;
+    max-height: min(75vh, 560px);
+    background: var(--neo-bg);
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: var(--neo-raised-lg);
+  }
+
+  .calendar-mobile-sheet__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid rgba(163, 177, 198, 0.2);
+    flex-shrink: 0;
+  }
+
+  .calendar-mobile-sheet__head h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--neo-text);
+  }
+
+  .calendar-mobile-sheet__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--neo-text-muted);
+    cursor: pointer;
+  }
+
+  .calendar-mobile-sheet__list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 12px;
+  }
+
+  .calendar-mobile-sheet__item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 12px;
+    border: none;
+    border-radius: var(--neo-radius-md);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .calendar-mobile-sheet__item.active {
+    background: color-mix(in srgb, var(--neo-accent) 10%, var(--neo-bg));
+  }
+
+  .calendar-mobile-sheet__dot {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+  }
+
+  .calendar-mobile-sheet__dot--all {
+    background: linear-gradient(135deg, var(--neo-accent) 0%, var(--neo-accent-bright) 100%);
+  }
+
+  .calendar-mobile-sheet__label {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--neo-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-mobile-sheet__shared {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--neo-text-muted);
+    background: rgba(163, 177, 198, 0.15);
+    vertical-align: middle;
+  }
+
+  .calendar-mobile-sheet__check {
+    flex-shrink: 0;
+    color: var(--neo-accent);
+  }
+
+  .calendar-mobile-sheet__create {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 8px 16px 16px;
+    padding: 14px;
+    border: none;
+    border-radius: var(--neo-radius-md);
+    background: var(--neo-accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* Hide Qalendar's internal header on mobile — use calendar-mobile-nav instead */
+  .calendar-wrapper :deep(.calendar-header) {
+    display: none !important;
+  }
+
+  .calendar-wrapper :deep(.calendar-root-wrapper) {
+    border-radius: 0;
+  }
+
+  .calendar-wrapper :deep(.calendar-root-wrapper .calendar-root) {
+    border-radius: 0 !important;
+  }
+
+  /* Event modal — fit above bottom nav without scrolling to Save */
+  .event-modal-overlay.event-modal-overlay--mobile {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .event-modal.event-modal--mobile {
+    max-width: 100%;
+    max-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-bottom, 0px) - 12px);
+    margin: 0;
+    padding: 12px 14px 10px;
+    border-radius: 16px 16px 0 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .event-modal--mobile h3 {
+    font-size: 17px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+  }
+
+  .event-modal--mobile form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .event-modal--mobile .form-group {
+    margin-bottom: 8px;
+    flex-shrink: 0;
+  }
+
+  .event-modal--mobile .form-group label {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .event-modal--mobile .input {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .event-modal--mobile .textarea {
+    min-height: 36px;
+    max-height: 36px;
+    resize: none;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .event-modal--mobile .event-tag-picker {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .event-modal--mobile .event-tag-picker::-webkit-scrollbar {
+    display: none;
+  }
+
+  .event-modal--mobile .event-tag-picker .folder-tag {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .event-modal--mobile .time-section-header {
+    margin-bottom: 4px;
+  }
+
+  .event-modal--mobile .time-section .form-group {
+    margin-bottom: 6px;
+  }
+
+  .event-modal--mobile .form-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .event-modal--mobile .sub-label {
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  .event-modal--mobile .event-date-picker :deep(.dp__input),
+  .event-modal--mobile .event-time-picker :deep(.dp__input) {
+    min-height: 36px;
+    padding: 8px 30px 8px 22px;
+    font-size: 13px;
+  }
+
+  .event-modal--mobile .toggle-text {
+    font-size: 12px;
+  }
+
+  .event-modal--mobile .modal-actions {
+    margin-top: auto;
+    padding-top: 8px;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(163, 177, 198, 0.2);
+  }
+
+  .event-modal--mobile .modal-actions .btn-primary,
+  .event-modal--mobile .modal-actions .btn-secondary,
+  .event-modal--mobile .modal-actions .btn-danger-outline {
+    padding: 9px 14px;
+    font-size: 14px;
   }
 }
 </style>

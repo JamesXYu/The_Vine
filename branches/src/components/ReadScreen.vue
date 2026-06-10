@@ -1,5 +1,19 @@
 <template>
-  <div class="read-page">
+  <div v-if="splitNotesOpen && !embedded" class="public-split-view">
+    <div class="split-pane split-pane--read">
+      <ReadScreen embedded :document-id="currentDocId" />
+    </div>
+    <div class="split-pane split-pane--notes">
+      <AdminScreen
+        :key="splitNotesKey"
+        embedded
+        split-mode
+        @close-split="closeSplitNotes"
+      />
+    </div>
+  </div>
+
+  <div v-else class="read-page" :class="{ embedded }">
     <!-- No Document Selected State -->
     <div v-if="!currentDocId && !loading" class="no-document">
       <div class="no-doc-icon">
@@ -79,11 +93,24 @@
     <div v-if="toast" class="toast" :class="toastType">
       {{ toast }}
     </div>
+
+    <button
+      v-if="showNotesFab"
+      type="button"
+      class="notes-split-fab"
+      aria-label="Take notes while reading"
+      @click="openSplitNotes"
+    >
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -94,13 +121,27 @@ import Highlight from '@tiptap/extension-highlight'
 import { ParagraphSpacing } from '../extensions/paragraphSpacing'
 import { supabase } from '../supabase'
 import { useDatabase } from '../composables/useDatabase'
+import AdminScreen from './AdminScreen.vue'
+import ReadScreen from './ReadScreen.vue'
 
 export default {
   name: 'ReadScreen',
   components: {
-    EditorContent
+    EditorContent,
+    AdminScreen,
+    ReadScreen
   },
-  setup() {
+  props: {
+    embedded: {
+      type: Boolean,
+      default: false
+    },
+    documentId: {
+      type: String,
+      default: null
+    }
+  },
+  setup(props) {
     const route = useRoute()
     const router = useRouter()
     const db = useDatabase()
@@ -116,6 +157,23 @@ export default {
     const loading = ref(false)
     const toast = ref('')
     const toastType = ref('success')
+    const splitNotesOpen = ref(false)
+    const splitNotesKey = ref(0)
+
+    const resolveDocId = () => props.documentId || route.query.doc || route.params.id || null
+
+    const showNotesFab = computed(() =>
+      !props.embedded && currentDocId.value && !splitNotesOpen.value
+    )
+
+    const openSplitNotes = () => {
+      splitNotesKey.value += 1
+      splitNotesOpen.value = true
+    }
+
+    const closeSplitNotes = () => {
+      splitNotesOpen.value = false
+    }
 
     // Create read-only Tiptap editor
     const editor = useEditor({
@@ -263,18 +321,38 @@ export default {
       }
     }
 
-    onMounted(async () => {
-      // Get current user
+    const initReadScreen = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       currentUser.value = user
       isAdmin.value = user?.user_metadata?.role === 'admin'
 
-      // Check for doc parameter in URL
-      const docId = route.query.doc || route.params.id
+      const docId = resolveDocId()
       if (docId) {
         await loadDocument(docId)
       }
+    }
+
+    onMounted(() => {
+      initReadScreen()
     })
+
+    watch(
+      () => props.documentId,
+      async (docId) => {
+        if (props.embedded && docId) {
+          await loadDocument(docId)
+        }
+      }
+    )
+
+    watch(
+      () => route.query.doc,
+      async (docId) => {
+        if (!props.embedded && docId) {
+          await loadDocument(docId)
+        }
+      }
+    )
 
     onBeforeUnmount(() => {
       editor.value?.destroy()
@@ -293,18 +371,79 @@ export default {
       toast,
       toastType,
       editDocument,
-      toggleSave
+      toggleSave,
+      splitNotesOpen,
+      splitNotesKey,
+      showNotesFab,
+      openSplitNotes,
+      closeSplitNotes
     }
   }
 }
 </script>
 
 <style scoped>
+.public-split-view {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--neo-bg);
+}
+
+.split-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split-pane--read {
+  border-right: 1px solid rgba(163, 177, 198, 0.35);
+}
+
+.split-pane--notes {
+  background: var(--neo-bg);
+}
+
+.notes-split-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: var(--neo-accent);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(232, 149, 111, 0.45);
+  cursor: pointer;
+}
+
+.notes-split-fab:active {
+  transform: scale(0.96);
+}
+
 .read-page {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 48px);
   background-color: var(--neo-bg);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.read-page.embedded {
+  height: 100%;
+  min-height: 0;
 }
 
 /* No Document Selected State */
@@ -364,6 +503,8 @@ export default {
   padding: 16px 48px;
   background: var(--neo-bg);
   border-bottom: 1px solid #eee;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .header-left {
@@ -371,6 +512,7 @@ export default {
   align-items: center;
   gap: 16px;
   flex: 1;
+  min-width: 0;
 }
 
 .title-row {
@@ -506,14 +648,20 @@ export default {
 /* Editor Container */
 .editor-container {
   height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 80px 48px 48px;
+  box-sizing: border-box;
 }
 
 /* Editor Content */
 .editor-content {
   max-width: 720px;
+  width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Prose Styles */
@@ -522,6 +670,9 @@ export default {
   font-size: 16px;
   line-height: 1.8;
   color: #333;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .editor-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
@@ -588,10 +739,27 @@ export default {
   padding: 20px 24px;
   border-radius: 12px;
   margin: 24px 0;
-  overflow-x: auto;
+  max-width: 100%;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
   font-family: 'Fira Code', 'Monaco', monospace;
   font-size: 14px;
   line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.editor-content :deep(img),
+.editor-content :deep(video),
+.editor-content :deep(iframe) {
+  max-width: 100%;
+  height: auto;
+}
+
+.editor-content :deep(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .editor-content :deep(code) {
@@ -653,6 +821,80 @@ export default {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .public-split-view {
+    flex-direction: column;
+    height: 100%;
+    margin-bottom: calc(-1 * (var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom, 0px)));
+    padding-bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .split-pane--read {
+    border-right: none;
+    border-bottom: 1px solid rgba(163, 177, 198, 0.35);
+  }
+
+  .notes-split-fab {
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px);
+    width: 52px;
+    height: 52px;
+  }
+
+  .read-page {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .doc-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .header-left,
+  .header-right {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .title-row {
+    flex-wrap: wrap;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .doc-title {
+    font-size: 18px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .editor-container {
+    padding: 64px 16px 32px;
+  }
+
+  .toolbar-placeholder {
+    left: 16px;
+    right: 16px;
+    transform: none;
+    max-width: calc(100% - 32px);
+    justify-content: center;
+  }
+
+  .toast {
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px);
   }
 }
 </style>

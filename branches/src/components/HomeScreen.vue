@@ -828,24 +828,79 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Phone: single-column feed — scroll naturally via main-content */
   .home-page {
     padding: 16px;
+    padding-bottom: 24px;
+    flex: none;
+    min-height: auto;
+    overflow: visible;
   }
 
   .welcome h1 {
-    font-size: 22px;
+    font-size: 32px;
+    line-height: 1.15;
   }
 
-  .recent-docs {
-    grid-template-columns: 1fr;
+  .page-header {
+    padding-top: 16px;
+    padding-bottom: 16px;
   }
 
+  .main-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    flex: none;
+  }
+
+  .left-column,
+  .right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: auto;
+    flex: none;
+  }
+
+  .scripture-section,
+  .announcement-section,
+  .half-section {
+    flex: none;
+    min-height: auto;
+  }
+
+  .scripture-card,
+  .announcement-card {
+    height: auto;
+    min-height: auto;
+  }
+
+  .announcement-content {
+    overflow: visible;
+  }
+
+  .announcement-text {
+    flex: none;
+    overflow: visible;
+  }
+
+  .recent-docs,
   .saved-docs {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: none;
+    min-height: auto;
   }
 
   .preview-card {
     padding: 16px;
+    min-height: auto;
+  }
+
+  .card-preview {
+    -webkit-line-clamp: 4;
   }
 }
 </style>

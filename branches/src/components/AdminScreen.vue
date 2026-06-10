@@ -1,5 +1,5 @@
 <template>
-  <div class="editor-page">
+  <div class="editor-page" :class="{ embedded, 'split-mode': splitMode }">
     <!-- Document Header -->
     <div class="doc-header">
       <div class="header-left">
@@ -228,7 +228,18 @@ export default {
   components: {
     EditorContent
   },
-  setup() {
+  props: {
+    embedded: {
+      type: Boolean,
+      default: false
+    },
+    splitMode: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['close-split'],
+  setup(props, { emit }) {
     const route = useRoute()
     const router = useRouter()
     const db = useDatabase()
@@ -416,8 +427,9 @@ export default {
             folder: null
           })
           currentDocId.value = doc.id
-          // Update URL without reloading
-          router.replace(`/admin?doc=${doc.id}`)
+          if (!props.embedded) {
+            router.replace(`/admin?doc=${doc.id}`)
+          }
           showToast('Saved to library!')
         }
 
@@ -452,7 +464,9 @@ export default {
           const publishedDoc = await db.publishDocument(currentDocId.value)
           // Document was moved to public library, clear current doc reference
           currentDocId.value = null
-          router.replace(`/admin?doc=${publishedDoc.id}`)
+          if (!props.embedded) {
+            router.replace(`/admin?doc=${publishedDoc.id}`)
+          }
         } else {
           // Create and publish
           const doc = await db.createDocument(currentUser.value.id, currentUser.value.email, {
@@ -463,7 +477,9 @@ export default {
           const publishedDoc = await db.publishDocument(doc.id)
           // Document was moved to public library
           currentDocId.value = null
-          router.replace(`/admin?doc=${publishedDoc.id}`)
+          if (!props.embedded) {
+            router.replace(`/admin?doc=${publishedDoc.id}`)
+          }
         }
         showToast('Published to public library!')
       } catch (err) {
@@ -475,11 +491,15 @@ export default {
     }
 
     onMounted(async () => {
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser()
       currentUser.value = user
 
-      // Check for doc parameter in URL
+      if (props.splitMode) {
+        await nextTick()
+        initNewDocumentEditor()
+        return
+      }
+
       const docId = route.query.doc
       if (docId) {
         await loadDocument(docId)
@@ -492,6 +512,7 @@ export default {
     watch(
       () => route.query.doc,
       async (docId) => {
+        if (props.embedded) return
         if (docId) {
           await loadDocument(docId)
         } else {
@@ -507,6 +528,7 @@ export default {
 
     // Route guard to check for unsaved changes
     onBeforeRouteLeave((to) => {
+      if (props.embedded) return true
       if (forceLeave.value) {
         forceLeave.value = false
         return true
@@ -521,6 +543,10 @@ export default {
     })
 
     const goBack = () => {
+      if (props.splitMode) {
+        emit('close-split')
+        return
+      }
       const docId = currentPublicDocId.value || currentDocId.value
       if (docId) {
         router.push(`/read?doc=${docId}`)
@@ -530,6 +556,10 @@ export default {
     }
 
     const navigateToDocumentView = () => {
+      if (props.splitMode) {
+        emit('close-split')
+        return
+      }
       const docId = currentPublicDocId.value || currentDocId.value
       if (docId) {
         forceLeave.value = true
@@ -584,7 +614,11 @@ export default {
       showUnsavedModal.value = false
       nextRoute.value = null
       pendingAction.value = null
-      navigateToDocumentView()
+      if (props.splitMode) {
+        emit('close-split')
+      } else {
+        navigateToDocumentView()
+      }
     }
 
     // Note: beforeunload warning removed to prevent browser's native leave warning
@@ -618,6 +652,15 @@ export default {
   flex-direction: column;
   height: calc(100vh - 48px);
   background-color: var(--neo-bg);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.editor-page.embedded {
+  height: 100%;
+  min-height: 0;
 }
 
 /* Document Header */
@@ -628,6 +671,8 @@ export default {
   padding: 16px 48px;
   background: var(--neo-bg);
   border-bottom: 1px solid #eee;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .header-left {
@@ -635,6 +680,7 @@ export default {
   align-items: center;
   gap: 16px;
   flex: 1;
+  min-width: 0;
 }
 
 .back-btn {
@@ -664,6 +710,8 @@ export default {
   outline: none;
   background: transparent;
   font-family: inherit;
+  min-width: 0;
+  flex: 1;
 }
 
 .doc-title::placeholder {
@@ -755,6 +803,8 @@ export default {
   z-index: 100;
   opacity: 0;
   animation: fadeIn 0.2s ease forwards;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
 }
 
 @keyframes fadeIn {
@@ -808,8 +858,11 @@ export default {
 /* Editor Container */
 .editor-container {
   height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 80px 48px 80px;
+  box-sizing: border-box;
 }
 
 /* Save Button (Bottom Right) */
@@ -841,7 +894,10 @@ export default {
 
 .editor-content {
   max-width: 720px;
+  width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Prose Styles */
@@ -851,6 +907,9 @@ export default {
   font-size: 16px;
   line-height: 1.8;
   color: #333;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .editor-content :deep(.ProseMirror p.is-empty:first-child::before),
@@ -941,10 +1000,27 @@ export default {
   padding: 20px 24px;
   border-radius: 12px;
   margin: 24px 0;
-  overflow-x: auto;
+  max-width: 100%;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
   font-family: 'Fira Code', 'Monaco', monospace;
   font-size: 14px;
   line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.editor-content :deep(img),
+.editor-content :deep(video),
+.editor-content :deep(iframe) {
+  max-width: 100%;
+  height: auto;
+}
+
+.editor-content :deep(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .editor-content :deep(code) {
@@ -1100,5 +1176,115 @@ export default {
 
 .btn-danger:hover {
   background: #c82333;
+}
+
+@media (max-width: 768px) {
+  /* Mobile split notes pane: compact header, single save button in pane */
+  .editor-page.embedded.split-mode .word-count,
+  .editor-page.embedded.split-mode .header-actions {
+    display: none;
+  }
+
+  .editor-page.embedded.split-mode .doc-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .editor-page.embedded.split-mode .header-left {
+    flex-wrap: nowrap;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .editor-page.embedded.split-mode .doc-title {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .editor-page.embedded.split-mode .editor-container {
+    padding: 48px 12px 56px;
+  }
+
+  .editor-page.embedded.split-mode .editor-wrapper > .save-btn {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    z-index: 50;
+  }
+
+  .editor-page {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .doc-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .header-left {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .doc-title {
+    font-size: 18px;
+    width: 100%;
+    flex: none;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .save-exit-btn,
+  .header-actions .save-btn {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .editor-container {
+    padding: 64px 16px 80px;
+  }
+
+  .toolbar {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .editor-page:not(.embedded.split-mode) .editor-wrapper > .save-btn {
+    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px);
+    right: 16px;
+  }
+
+  .toast {
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+
+  .modal {
+    margin: 16px;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+  }
 }
 </style>

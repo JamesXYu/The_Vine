@@ -64,14 +64,14 @@ function getWeekDayDate(dayEl, dayIndex, period) {
   return formatDate(d)
 }
 
-function getWeekDayColumns(wrapperEl) {
+export function getWeekDayColumns(wrapperEl) {
   const root = wrapperEl?.closest?.('.calendar-week__wrapper')
   if (!root) return []
   return Array.from(root.querySelectorAll('.calendar-week .calendar-week__day'))
 }
 
 /** Snap a vertical position to the 15-minute grid within a day column */
-function getSnappedDragRange(dayEl, y1, y2) {
+export function getSnappedDragRange(dayEl, y1, y2) {
   const height = dayEl.clientHeight || 1
   const intervalCount = MINUTES_PER_DAY / GRID_INTERVAL_MINUTES
   const intervalHeight = height / intervalCount
